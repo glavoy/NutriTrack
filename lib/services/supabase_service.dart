@@ -34,32 +34,28 @@ class SupabaseService {
   // ==================== FOODS ====================
 
   Future<List<Food>> getFoods() async {
-    final response = await _client
-        .from('foods')
-        .select()
-        .order('name');
-    
+    final response = await _client.from('foods').select().order('name');
+
     return (response as List).map((json) => Food.fromJson(json)).toList();
   }
 
   Future<Food> addFood(Food food) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw StateError('Must be signed in to add foods');
+    }
+
     final data = food.toJson();
-    data['user_id'] = currentUserId;
-    
-    final response = await _client
-        .from('foods')
-        .insert(data)
-        .select()
-        .single();
-    
+    data['user_id'] = userId;
+    data['is_default'] = false;
+
+    final response = await _client.from('foods').insert(data).select().single();
+
     return Food.fromJson(response);
   }
 
   Future<void> updateFood(Food food) async {
-    await _client
-        .from('foods')
-        .update(food.toJson())
-        .eq('id', food.id!);
+    await _client.from('foods').update(food.toJson()).eq('id', food.id!);
   }
 
   Future<void> deleteFood(String id) async {
@@ -70,48 +66,43 @@ class SupabaseService {
 
   Future<List<Entry>> getEntriesForDate(DateTime date) async {
     final dateStr = date.toIso8601String().split('T')[0];
-    
+
     final response = await _client
         .from('entries')
         .select()
         .eq('date', dateStr)
         .order('created_at');
-    
+
     return (response as List).map((json) => Entry.fromJson(json)).toList();
   }
 
-  Future<List<Entry>> getEntriesForDateRange(DateTime start, DateTime end) async {
+  Future<List<Entry>> getEntriesForDateRange(
+      DateTime start, DateTime end) async {
     final startStr = start.toIso8601String().split('T')[0];
     final endStr = end.toIso8601String().split('T')[0];
-    
+
     final response = await _client
         .from('entries')
         .select()
         .gte('date', startStr)
         .lte('date', endStr)
         .order('date', ascending: false);
-    
+
     return (response as List).map((json) => Entry.fromJson(json)).toList();
   }
 
   Future<Entry> addEntry(Entry entry) async {
     final data = entry.toJson();
     data['user_id'] = currentUserId;
-    
-    final response = await _client
-        .from('entries')
-        .insert(data)
-        .select()
-        .single();
-    
+
+    final response =
+        await _client.from('entries').insert(data).select().single();
+
     return Entry.fromJson(response);
   }
 
   Future<void> updateEntry(Entry entry) async {
-    await _client
-        .from('entries')
-        .update(entry.toJson())
-        .eq('id', entry.id!);
+    await _client.from('entries').update(entry.toJson()).eq('id', entry.id!);
   }
 
   Future<void> deleteEntry(String id) async {
@@ -136,7 +127,7 @@ class SupabaseService {
           .select()
           .eq('user_id', currentUserId!)
           .single();
-      
+
       return UserTargets.fromJson(response);
     } catch (e) {
       // Return defaults if not found
@@ -147,10 +138,8 @@ class SupabaseService {
   Future<void> updateUserTargets(UserTargets targets) async {
     final data = targets.toJson();
     data['user_id'] = currentUserId;
-    
-    await _client
-        .from('user_targets')
-        .upsert(data, onConflict: 'user_id');
+
+    await _client.from('user_targets').upsert(data, onConflict: 'user_id');
   }
 
   // ==================== HISTORY / STATS ====================
@@ -158,15 +147,16 @@ class SupabaseService {
   Future<Map<DateTime, double>> getCalorieHistory(int days) async {
     final endDate = DateTime.now();
     final startDate = endDate.subtract(Duration(days: days));
-    
+
     final entries = await getEntriesForDateRange(startDate, endDate);
-    
+
     final Map<DateTime, double> history = {};
     for (final entry in entries) {
-      final dateOnly = DateTime(entry.date.year, entry.date.month, entry.date.day);
+      final dateOnly =
+          DateTime(entry.date.year, entry.date.month, entry.date.day);
       history[dateOnly] = (history[dateOnly] ?? 0) + entry.calories;
     }
-    
+
     return history;
   }
 }

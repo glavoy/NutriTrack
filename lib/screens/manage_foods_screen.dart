@@ -64,18 +64,23 @@ class _ManageFoodsScreenState extends ConsumerState<ManageFoodsScreen> {
                 }
                 return ListView.separated(
                   itemCount: foods.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final food = foods[index];
                     return ListTile(
                       title: Text(food.name),
                       subtitle: Text(
-                        '${food.calories.round()} kcal / ${food.defaultQty} ${food.unit} '
-                        '(step: ${food.incrementBy})',
+                        '${food.calories.toStringAsFixed(2)} kcal per ${food.unit} '
+                        '• default ${food.defaultQty} ${food.unit} '
+                        '• step ${food.incrementBy}',
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: food.isDefault
+                          ? const Chip(label: Text('Standard'))
+                          : const Icon(Icons.chevron_right),
                       onTap: () => _openFoodForm(food),
-                      onLongPress: () => _confirmDelete(food),
+                      onLongPress:
+                          food.isDefault ? null : () => _confirmDelete(food),
                     );
                   },
                 );
@@ -132,12 +137,14 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
 
+  bool get _isStandardFood => widget.food?.isDefault ?? false;
+
   // Controllers
   late final TextEditingController _nameController;
   late final TextEditingController _unitController;
   late final TextEditingController _defaultQtyController;
   late final TextEditingController _incrementByController;
-  
+
   // Macro controllers map
   final Map<String, TextEditingController> _macroControllers = {};
 
@@ -163,23 +170,38 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
     final f = widget.food;
     _nameController = TextEditingController(text: f?.name ?? '');
     _unitController = TextEditingController(text: f?.unit ?? 'serving');
-    _defaultQtyController = TextEditingController(text: f?.defaultQty.toString() ?? '1');
-    _incrementByController = TextEditingController(text: f?.incrementBy.toString() ?? '1');
+    _defaultQtyController =
+        TextEditingController(text: f?.defaultQty.toString() ?? '1');
+    _incrementByController =
+        TextEditingController(text: f?.incrementBy.toString() ?? '1');
 
     // Initialize macro controllers
-    _macroControllers['calories'] = TextEditingController(text: f?.calories.toString() ?? '0');
-    _macroControllers['protein'] = TextEditingController(text: f?.protein.toString() ?? '0');
-    _macroControllers['carbs'] = TextEditingController(text: f?.carbs.toString() ?? '0');
-    _macroControllers['fat'] = TextEditingController(text: f?.fat.toString() ?? '0');
-    _macroControllers['fiber'] = TextEditingController(text: f?.fiber.toString() ?? '0');
-    _macroControllers['sugar'] = TextEditingController(text: f?.sugar.toString() ?? '0');
-    _macroControllers['saturatedFat'] = TextEditingController(text: f?.saturatedFat.toString() ?? '0');
-    _macroControllers['sodium'] = TextEditingController(text: f?.sodium.toString() ?? '0');
-    _macroControllers['potassium'] = TextEditingController(text: f?.potassium.toString() ?? '0');
-    _macroControllers['calcium'] = TextEditingController(text: f?.calcium.toString() ?? '0');
-    _macroControllers['iron'] = TextEditingController(text: f?.iron.toString() ?? '0');
-    _macroControllers['magnesium'] = TextEditingController(text: f?.magnesium.toString() ?? '0');
-    _macroControllers['cholesterol'] = TextEditingController(text: f?.cholesterol.toString() ?? '0');
+    _macroControllers['calories'] =
+        TextEditingController(text: f?.calories.toString() ?? '0');
+    _macroControllers['protein'] =
+        TextEditingController(text: f?.protein.toString() ?? '0');
+    _macroControllers['carbs'] =
+        TextEditingController(text: f?.carbs.toString() ?? '0');
+    _macroControllers['fat'] =
+        TextEditingController(text: f?.fat.toString() ?? '0');
+    _macroControllers['fiber'] =
+        TextEditingController(text: f?.fiber.toString() ?? '0');
+    _macroControllers['sugar'] =
+        TextEditingController(text: f?.sugar.toString() ?? '0');
+    _macroControllers['saturatedFat'] =
+        TextEditingController(text: f?.saturatedFat.toString() ?? '0');
+    _macroControllers['sodium'] =
+        TextEditingController(text: f?.sodium.toString() ?? '0');
+    _macroControllers['potassium'] =
+        TextEditingController(text: f?.potassium.toString() ?? '0');
+    _macroControllers['calcium'] =
+        TextEditingController(text: f?.calcium.toString() ?? '0');
+    _macroControllers['iron'] =
+        TextEditingController(text: f?.iron.toString() ?? '0');
+    _macroControllers['magnesium'] =
+        TextEditingController(text: f?.magnesium.toString() ?? '0');
+    _macroControllers['cholesterol'] =
+        TextEditingController(text: f?.cholesterol.toString() ?? '0');
   }
 
   @override
@@ -188,11 +210,14 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
     _unitController.dispose();
     _defaultQtyController.dispose();
     _incrementByController.dispose();
-    for (final c in _macroControllers.values) c.dispose();
+    for (final c in _macroControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _save() async {
+    if (_isStandardFood) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
@@ -211,14 +236,16 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
         fat: double.tryParse(_macroControllers['fat']!.text) ?? 0,
         fiber: double.tryParse(_macroControllers['fiber']!.text) ?? 0,
         sugar: double.tryParse(_macroControllers['sugar']!.text) ?? 0,
-        saturatedFat: double.tryParse(_macroControllers['saturatedFat']!.text) ?? 0,
+        saturatedFat:
+            double.tryParse(_macroControllers['saturatedFat']!.text) ?? 0,
         sodium: double.tryParse(_macroControllers['sodium']!.text) ?? 0,
         potassium: double.tryParse(_macroControllers['potassium']!.text) ?? 0,
         calcium: double.tryParse(_macroControllers['calcium']!.text) ?? 0,
         iron: double.tryParse(_macroControllers['iron']!.text) ?? 0,
         magnesium: double.tryParse(_macroControllers['magnesium']!.text) ?? 0,
-        cholesterol: double.tryParse(_macroControllers['cholesterol']!.text) ?? 0,
-        isDefault: widget.food?.isDefault ?? false,
+        cholesterol:
+            double.tryParse(_macroControllers['cholesterol']!.text) ?? 0,
+        isDefault: false,
         createdAt: widget.food?.createdAt,
       );
 
@@ -248,18 +275,25 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.food == null ? 'Add Food' : 'Edit Food'),
+        title: Text(
+          widget.food == null
+              ? 'Add Food'
+              : _isStandardFood
+                  ? 'Standard Food'
+                  : 'Edit Food',
+        ),
         actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child: _isSaving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Save'),
-          ),
+          if (!_isStandardFood)
+            TextButton(
+              onPressed: _isSaving ? null : _save,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save'),
+            ),
         ],
       ),
       body: Form(
@@ -278,6 +312,7 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _nameController,
+              readOnly: _isStandardFood,
               decoration: const InputDecoration(
                 labelText: 'Name',
                 border: OutlineInputBorder(),
@@ -291,6 +326,7 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _defaultQtyController,
+                    readOnly: _isStandardFood,
                     decoration: const InputDecoration(
                       labelText: 'Default Qty',
                       border: OutlineInputBorder(),
@@ -302,6 +338,7 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _incrementByController,
+                    readOnly: _isStandardFood,
                     decoration: const InputDecoration(
                       labelText: 'Increment By',
                       border: OutlineInputBorder(),
@@ -314,6 +351,7 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _unitController,
+              readOnly: _isStandardFood,
               decoration: const InputDecoration(
                 labelText: 'Unit (e.g. cup, g)',
                 border: OutlineInputBorder(),
@@ -327,7 +365,7 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
 
             // Macros
             const Text(
-              'Nutrition Facts (per default qty)',
+              'Nutrition Facts (per 1 unit)',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -340,12 +378,14 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
                 padding: const EdgeInsets.only(bottom: 16),
                 child: TextFormField(
                   controller: _macroControllers[key],
+                  readOnly: _isStandardFood,
                   decoration: InputDecoration(
                     labelText: label,
                     suffixText: unit,
                     border: const OutlineInputBorder(),
                   ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
                 ),
               );
             }),

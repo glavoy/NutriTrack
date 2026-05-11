@@ -1,71 +1,181 @@
--- Ensure the increment_by column exists
-ALTER TABLE foods ADD COLUMN IF NOT EXISTS increment_by DECIMAL(10,2) DEFAULT 1;
+-- NutriTrack foods permissions and RLS cleanup.
+--
+-- This script is tailored to the current database shape:
+-- - foods already exists
+-- - id is uuid with gen_random_uuid()
+-- - user_id already references auth.users(id)
+-- - is_default already exists
+--
+-- Desired model:
+-- - Current foods: convert all existing rows to standard public foods.
+-- - Standard foods: is_default = true, user_id = null, readable by everyone.
+-- - Future custom foods: is_default = false, user_id = auth.uid(), readable and
+--   manageable only by that user.
+--
+-- This is non-destructive: it does not delete foods or entries.
 
--- Reset the foods table
-TRUNCATE TABLE foods CASCADE;
+begin;
 
--- Insert normalized data
-INSERT INTO foods (name, unit, default_qty, increment_by, calories, fat, saturated_fat, carbs, fiber, sugar, protein, sodium, potassium, calcium, iron, magnesium, cholesterol, is_default)
-VALUES 
--- Oats: Base unit 'cup'. 1 cup approx 303 cal. Serving 1/3 cup.
-('Oats', 'cup', 0.33, 0.33, 303.00, 6.00, 1.20, 54.00, 8.20, 0.90, 10.60, 0.00, 303.00, 42.00, 3.60, 109.00, 0.00, true),
+-- The current 42501 on addFood is most likely caused by the app calling
+-- insert(...).select().single(): authenticated needs SELECT as well as INSERT.
+grant select on public.foods to anon, authenticated;
+grant insert, update, delete on public.foods to authenticated;
 
--- Almond: Base unit 'piece'. 
-('Almond', 'piece', 15.00, 1.00, 7.00, 0.60, 0.05, 0.27, 0.12, 0.04, 0.25, 0.00, 6.70, 2.50, 0.04, 2.60, 0.00, true),
+-- Keep unauthenticated clients read-only.
+revoke insert, update, delete, truncate on public.foods from anon;
 
--- Dried Cranberry: Base unit 'piece'.
-('Dried Cranberry', 'piece', 25.00, 5.00, 1.30, 0.00, 0.00, 0.34, 0.02, 0.26, 0.00, 0.04, 0.50, 0.08, 0.00, 0.04, 0.00, true),
+-- You asked to make every food currently in the table public. Future foods
+-- added through the app will still be user-specific because the app inserts
+-- user_id = auth.uid() and is_default = false.
+update public.foods
+set user_id = null,
+    is_default = true;
 
--- Milk: Base unit 'cup' (240ml).
-('Milk 5%', 'cup', 1.00, 0.25, 120.00, 4.80, 2.40, 9.60, 0.00, 4.80, 6.24, 96.00, 300.00, 240.00, 0.00, 24.00, 12.00, true),
+-- Milk 5% should calculate by gram. The nutrition values below are per 1 g,
+-- with default_qty set to 25 g for quick add.
+update public.foods
+set unit = 'g',
+    default_qty = 25,
+    increment_by = 5,
+    calories = 0.77,
+    fat = 0.05,
+    saturated_fat = 0.032,
+    carbs = 0.048,
+    fiber = 0,
+    sugar = 0.048,
+    protein = 0.033,
+    sodium = 0.42,
+    potassium = 1.50,
+    calcium = 1.20,
+    iron = 0.0002,
+    magnesium = 0.11,
+    cholesterol = 0.18
+where name = 'Milk 5%';
 
--- Egg: Base unit 'large egg'.
-('Egg', 'large egg', 1.00, 1.00, 72.00, 5.00, 1.60, 0.40, 0.00, 0.20, 6.30, 71.00, 69.00, 28.00, 0.90, 6.00, 186.00, true),
+-- These existing gram-based rows had per-100g values in at least some fields.
+-- The app stores per-1g values for unit = 'g'. Explicit values keep the script
+-- safe to rerun.
+update public.foods
+set calories = 3.40,
+    fat = 0.042,
+    saturated_fat = 0.019,
+    carbs = 0.665,
+    fiber = 0.085,
+    sugar = 0.145,
+    protein = 0.085,
+    sodium = 0.20,
+    potassium = 4.00,
+    calcium = 0.65,
+    iron = 0.031,
+    magnesium = 0.80,
+    cholesterol = 0
+where name = 'Muesli (with dried fruit)';
 
--- FRUITS
-('Banana', 'medium', 1.00, 0.50, 105.00, 0.40, 0.10, 27.00, 3.10, 14.00, 1.30, 1.00, 422.00, 6.00, 0.30, 32.00, 0.00, true),
-('Apple', 'medium', 1.00, 0.50, 95.00, 0.30, 0.10, 25.00, 4.40, 19.00, 0.50, 2.00, 195.00, 11.00, 0.20, 9.00, 0.00, true),
-('Avocado', 'medium', 1.00, 0.50, 240.00, 22.00, 3.20, 13.00, 10.00, 1.00, 3.00, 11.00, 728.00, 18.00, 0.80, 44.00, 0.00, true),
-('Orange', 'medium', 1.00, 0.50, 62.00, 0.20, 0.00, 15.00, 3.10, 12.00, 1.20, 0.00, 237.00, 52.00, 0.10, 13.00, 0.00, true),
-('Watermelon', 'cup diced', 1.00, 0.25, 46.00, 0.20, 0.00, 11.50, 0.60, 9.40, 0.90, 2.00, 170.00, 11.00, 0.40, 15.00, 0.00, true),
-('Papaya', 'cup cubed', 1.00, 0.25, 62.00, 0.40, 0.10, 16.00, 2.50, 11.00, 0.70, 12.00, 264.00, 29.00, 0.40, 14.00, 0.00, true),
-('Pineapple', 'cup chunks', 1.00, 0.25, 82.00, 0.20, 0.00, 22.00, 2.30, 16.00, 0.90, 2.00, 180.00, 21.00, 0.50, 20.00, 0.00, true),
-('Mango', 'cup sliced', 1.00, 0.25, 99.00, 0.60, 0.10, 25.00, 2.60, 23.00, 1.40, 2.00, 277.00, 17.00, 0.30, 16.00, 0.00, true),
+update public.foods
+set calories = 3.78,
+    fat = 0.12,
+    saturated_fat = 0.014,
+    carbs = 0.60,
+    fiber = 0.095,
+    sugar = 0.124,
+    protein = 0.108,
+    sodium = 0.20,
+    potassium = 4.43,
+    calcium = 0.65,
+    iron = 0.039,
+    magnesium = 1.36,
+    cholesterol = 0
+where name = 'Muesli (without dried fruit)';
 
--- VEGETABLES
-('Broccoli', 'cup', 1.00, 0.25, 55.00, 0.60, 0.10, 11.00, 5.10, 2.20, 3.70, 64.00, 457.00, 62.00, 1.00, 33.00, 0.00, true),
-('Leafy Lettuce', 'cup shredded', 1.00, 0.25, 5.00, 0.10, 0.00, 1.00, 0.50, 0.40, 0.50, 3.00, 70.00, 13.00, 0.30, 3.00, 0.00, true),
-('Red Bell Pepper', 'medium', 1.00, 0.50, 37.00, 0.40, 0.10, 7.00, 2.50, 5.00, 1.20, 5.00, 251.00, 8.00, 0.50, 14.00, 0.00, true),
-('Tomato', 'medium', 1.00, 0.50, 22.00, 0.20, 0.00, 4.80, 1.50, 3.20, 1.10, 6.00, 292.00, 12.00, 0.30, 14.00, 0.00, true),
-('Carrot', 'medium', 1.00, 0.50, 25.00, 0.10, 0.00, 6.00, 1.70, 2.90, 0.60, 42.00, 195.00, 20.00, 0.20, 7.00, 0.00, true),
-('Cucumber', 'cup sliced', 1.00, 0.25, 16.00, 0.10, 0.00, 3.80, 0.50, 1.70, 0.70, 2.00, 152.00, 16.00, 0.30, 13.00, 0.00, true),
+update public.foods
+set calories = 1.00
+where name = 'Vanilla Yogurt';
 
--- MEATS (100g base -> 1g unit)
--- Chicken Breast: 165 cal per 100g -> 1.65 per g
-('Chicken Breast (baked)', 'g', 100.00, 10.00, 1.65, 0.036, 0.01, 0.00, 0.00, 0.00, 0.31, 0.74, 2.56, 0.11, 0.009, 0.29, 0.85, true),
--- Chicken Wing: 99 cal per wing
-('Chicken Wing (baked)', 'wing', 1.00, 1.00, 99.00, 6.60, 1.90, 0.00, 0.00, 0.00, 9.10, 28.00, 57.00, 5.00, 0.40, 6.00, 29.00, true),
--- Chicken Thigh: 135 cal per thigh
-('Chicken Thigh (baked)', 'thigh', 1.00, 1.00, 135.00, 7.50, 2.10, 0.00, 0.00, 0.00, 16.00, 60.00, 165.00, 7.00, 0.70, 15.00, 65.00, true),
--- Beef Fillet: 217 cal per 100g -> 2.17 per g
-('Beef Fillet (baked)', 'g', 100.00, 10.00, 2.17, 0.11, 0.042, 0.00, 0.00, 0.00, 0.28, 0.55, 3.42, 0.07, 0.026, 0.24, 0.82, true),
--- Ground Beef: 250 cal per 100g -> 2.5 per g
-('Ground Beef (lean, cooked)', 'g', 100.00, 10.00, 2.50, 0.15, 0.059, 0.00, 0.00, 0.00, 0.26, 0.75, 3.18, 0.12, 0.025, 0.21, 0.87, true),
--- Tilapia: 128 cal per 100g -> 1.28 per g
-('Tilapia (baked)', 'g', 100.00, 10.00, 1.28, 0.027, 0.009, 0.00, 0.00, 0.00, 0.26, 0.56, 3.80, 0.14, 0.007, 0.34, 0.57, true),
+update public.foods
+set calories = 3.12,
+    fat = 0.1473,
+    saturated_fat = 0.021,
+    carbs = 0.4144,
+    fiber = 0.038,
+    sugar = 0.005,
+    protein = 0.0343,
+    sodium = 2.10,
+    potassium = 5.79,
+    calcium = 0.18,
+    iron = 0.0081,
+    magnesium = 0.35,
+    cholesterol = 0
+where name = 'French Fries (Deep Fried)';
 
--- GRAINS / SIDES
-('Brown Rice (cooked)', 'cup', 1.00, 0.25, 216.00, 1.80, 0.40, 45.00, 3.50, 0.70, 5.00, 10.00, 84.00, 20.00, 0.80, 84.00, 0.00, true),
-('Multi-grain Bread', 'slice', 1.00, 1.00, 69.00, 1.10, 0.20, 11.30, 1.90, 1.40, 3.50, 99.00, 53.00, 24.00, 0.70, 14.00, 0.00, true),
-('White Rice (cooked)', 'cup', 1.00, 0.25, 206.00, 0.40, 0.10, 45.00, 0.60, 0.10, 4.30, 2.00, 55.00, 16.00, 0.20, 19.00, 0.00, true),
-('Sweet Potato (baked)', 'medium', 1.00, 0.50, 103.00, 0.10, 0.00, 24.00, 3.80, 7.00, 2.30, 41.00, 542.00, 43.00, 0.80, 31.00, 0.00, true),
-('Potato (baked)', 'medium', 1.00, 0.50, 161.00, 0.20, 0.10, 37.00, 3.80, 2.00, 4.30, 17.00, 926.00, 26.00, 1.90, 48.00, 0.00, true),
-('Black Beans (cooked)', 'cup', 1.00, 0.25, 227.00, 0.90, 0.20, 41.00, 15.00, 0.60, 15.00, 2.00, 611.00, 46.00, 3.60, 120.00, 0.00, true),
-('Lentils (cooked)', 'cup', 1.00, 0.25, 230.00, 0.80, 0.10, 40.00, 16.00, 3.60, 18.00, 4.00, 731.00, 38.00, 6.60, 71.00, 0.00, true),
+update public.foods
+set calories = 1.01,
+    fat = 0.001,
+    saturated_fat = 0.0001,
+    carbs = 0.274,
+    fiber = 0.003,
+    sugar = 0.22,
+    protein = 0.0104,
+    sodium = 9.07,
+    potassium = 2.81,
+    calcium = 0.15,
+    iron = 0.0035,
+    magnesium = 0.13,
+    cholesterol = 0
+where name = 'Ketchup';
 
--- DAIRY / OTHER (100g base -> 1g unit)
--- Greek Yogurt: 59 cal per 100g -> 0.59 per g
-('Greek Yogurt (plain)', 'g', 100.00, 10.00, 0.59, 0.007, 0.005, 0.036, 0.00, 0.032, 0.10, 0.36, 1.41, 1.10, 0.001, 0.11, 0.05, true),
-('Cheddar Cheese', 'slice', 1.00, 1.00, 113.00, 9.30, 5.90, 0.40, 0.00, 0.10, 7.00, 174.00, 21.00, 200.00, 0.20, 8.00, 28.00, true),
-('Peanut Butter', 'tbsp', 1.00, 0.50, 94.00, 8.00, 1.70, 3.60, 0.90, 1.70, 3.80, 73.00, 103.00, 7.00, 0.30, 25.00, 0.00, true),
-('Club Beer (Uganda)', 'bottle', 1.00, 1.00, 215.00, 0.00, 0.00, 17.00, 0.00, 0.00, 1.50, 10.00, 90.00, 14.00, 0.10, 18.00, 0.00, true);
+alter table public.foods enable row level security;
+
+-- Remove the overlapping existing policies so the behavior is unambiguous.
+drop policy if exists "Manage Own Foods" on public.foods;
+drop policy if exists "Public Read Default Foods" on public.foods;
+drop policy if exists "Read Own Foods" on public.foods;
+drop policy if exists "Users can delete their own foods" on public.foods;
+drop policy if exists "Users can insert their own foods" on public.foods;
+drop policy if exists "Users can update their own foods" on public.foods;
+drop policy if exists "Users can view default foods and their own foods" on public.foods;
+drop policy if exists "Read standard and own custom foods" on public.foods;
+drop policy if exists "Read shared and own foods" on public.foods;
+drop policy if exists "Create own custom foods" on public.foods;
+drop policy if exists "Update own custom foods" on public.foods;
+drop policy if exists "Delete own custom foods" on public.foods;
+
+create policy "Read standard and own custom foods"
+on public.foods
+for select
+using (
+  is_default = true
+  or user_id = auth.uid()
+);
+
+create policy "Create own custom foods"
+on public.foods
+for insert
+to authenticated
+with check (
+  user_id = auth.uid()
+  and is_default = false
+);
+
+create policy "Update own custom foods"
+on public.foods
+for update
+to authenticated
+using (
+  user_id = auth.uid()
+  and is_default = false
+)
+with check (
+  user_id = auth.uid()
+  and is_default = false
+);
+
+create policy "Delete own custom foods"
+on public.foods
+for delete
+to authenticated
+using (
+  user_id = auth.uid()
+  and is_default = false
+);
+
+commit;

@@ -193,12 +193,39 @@ class _FoodTile extends ConsumerStatefulWidget {
 
 class _FoodTileState extends ConsumerState<_FoodTile> {
   late double _quantity;
+  late final TextEditingController _quantityController;
   bool _expanded = false;
 
   @override
   void initState() {
     super.initState();
     _quantity = widget.food.defaultQty;
+    _quantityController = TextEditingController(text: _formatQty(_quantity));
+  }
+
+  @override
+  void didUpdateWidget(covariant _FoodTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.food.id != widget.food.id) {
+      _quantity = widget.food.defaultQty;
+      _quantityController.text = _formatQty(_quantity);
+    }
+  }
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  String _formatQty(double quantity) {
+    if (quantity % 1 == 0) return quantity.toInt().toString();
+    return double.parse(quantity.toStringAsFixed(3)).toString();
+  }
+
+  void _setQuantity(double quantity) {
+    _quantity = double.parse(quantity.toStringAsFixed(3));
+    _quantityController.text = _formatQty(_quantity);
   }
 
   void _addEntry() async {
@@ -255,7 +282,8 @@ class _FoodTileState extends ConsumerState<_FoodTile> {
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
             subtitle: Text(
-              '${widget.food.unit} • ${widget.food.calories.round()} kcal each',
+              '${widget.food.calories.toStringAsFixed(2)} kcal per ${widget.food.unit} '
+              '• default ${_formatQty(widget.food.defaultQty)} ${widget.food.unit}',
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
             trailing: Row(
@@ -265,9 +293,7 @@ class _FoodTileState extends ConsumerState<_FoodTile> {
                   icon: const Icon(Icons.remove_circle_outline),
                   onPressed: _quantity > widget.food.incrementBy
                       ? () => setState(() {
-                            _quantity -= widget.food.incrementBy;
-                            // Fix precision
-                            _quantity = double.parse(_quantity.toStringAsFixed(3));
+                            _setQuantity(_quantity - widget.food.incrementBy);
                           })
                       : null,
                 ),
@@ -281,9 +307,7 @@ class _FoodTileState extends ConsumerState<_FoodTile> {
                       contentPadding: EdgeInsets.symmetric(vertical: 8),
                       border: OutlineInputBorder(),
                     ),
-                    controller: TextEditingController(
-                      text: _quantity.toString(),
-                    ),
+                    controller: _quantityController,
                     onChanged: (value) {
                       final parsed = double.tryParse(value);
                       if (parsed != null && parsed > 0) {
@@ -295,8 +319,7 @@ class _FoodTileState extends ConsumerState<_FoodTile> {
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline),
                   onPressed: () => setState(() {
-                    _quantity += widget.food.incrementBy;
-                    _quantity = double.parse(_quantity.toStringAsFixed(3));
+                    _setQuantity(_quantity + widget.food.incrementBy);
                   }),
                 ),
                 const SizedBox(width: 8),
@@ -458,7 +481,6 @@ class _CustomEntryTabState extends ConsumerState<_CustomEntryTab> {
               },
             ),
             const SizedBox(height: 16),
-
             TextFormField(
               controller: _caloriesController,
               decoration: const InputDecoration(
@@ -468,7 +490,6 @@ class _CustomEntryTabState extends ConsumerState<_CustomEntryTab> {
               keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 16),
-
             Row(
               children: [
                 Expanded(
@@ -506,7 +527,6 @@ class _CustomEntryTabState extends ConsumerState<_CustomEntryTab> {
               ],
             ),
             const SizedBox(height: 16),
-
             Row(
               children: [
                 Expanded(
@@ -544,7 +564,6 @@ class _CustomEntryTabState extends ConsumerState<_CustomEntryTab> {
               ],
             ),
             const SizedBox(height: 24),
-
             FilledButton(
               onPressed: _isSubmitting ? null : _submit,
               child: _isSubmitting
