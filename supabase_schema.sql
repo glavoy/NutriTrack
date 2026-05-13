@@ -20,9 +20,15 @@ begin;
 -- insert(...).select().single(): authenticated needs SELECT as well as INSERT.
 grant select on public.foods to anon, authenticated;
 grant insert, update, delete on public.foods to authenticated;
+grant select on public.entries to authenticated;
+grant insert, update, delete on public.entries to authenticated;
+grant select on public.user_targets to authenticated;
+grant insert, update, delete on public.user_targets to authenticated;
 
 -- Keep unauthenticated clients read-only.
 revoke insert, update, delete, truncate on public.foods from anon;
+revoke insert, update, delete, truncate on public.entries from anon;
+revoke insert, update, delete, truncate on public.user_targets from anon;
 
 -- You asked to make every food currently in the table public. Future foods
 -- added through the app will still be user-specific because the app inserts

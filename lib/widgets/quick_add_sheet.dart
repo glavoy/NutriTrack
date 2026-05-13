@@ -123,13 +123,42 @@ class _MealSelector extends ConsumerWidget {
   }
 }
 
-class _QuickAddTab extends ConsumerWidget {
+class _QuickAddTab extends ConsumerStatefulWidget {
   const _QuickAddTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_QuickAddTab> createState() => _QuickAddTabState();
+}
+
+class _QuickAddTabState extends ConsumerState<_QuickAddTab> {
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.text = ref.read(foodSearchQueryProvider);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final foodsAsync = ref.watch(filteredFoodsProvider);
     final searchQuery = ref.watch(foodSearchQueryProvider);
+    final keyboardBottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    if (_searchController.text != searchQuery) {
+      _searchController.value = TextEditingValue(
+        text: searchQuery,
+        selection: TextSelection.collapsed(offset: searchQuery.length),
+      );
+    }
 
     return Column(
       children: [
@@ -137,6 +166,9 @@ class _QuickAddTab extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.all(16),
           child: TextField(
+            autofocus: true,
+            controller: _searchController,
+            focusNode: _searchFocusNode,
             decoration: InputDecoration(
               hintText: 'Search foods...',
               prefixIcon: const Icon(Icons.search),
@@ -145,6 +177,7 @@ class _QuickAddTab extends ConsumerWidget {
                       icon: const Icon(Icons.clear),
                       onPressed: () {
                         ref.read(foodSearchQueryProvider.notifier).state = '';
+                        _searchFocusNode.requestFocus();
                       },
                     )
                   : null,
@@ -168,10 +201,18 @@ class _QuickAddTab extends ConsumerWidget {
               }
 
               return ListView.builder(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.only(
+                  bottom: keyboardBottomInset + 16,
+                ),
                 itemCount: foods.length,
                 itemBuilder: (context, index) {
                   final food = foods[index];
-                  return _FoodTile(food: food);
+                  return _FoodTile(
+                    key: ValueKey(food.id ?? food.name),
+                    food: food,
+                  );
                 },
               );
             },
@@ -185,7 +226,7 @@ class _QuickAddTab extends ConsumerWidget {
 class _FoodTile extends ConsumerStatefulWidget {
   final Food food;
 
-  const _FoodTile({required this.food});
+  const _FoodTile({super.key, required this.food});
 
   @override
   ConsumerState<_FoodTile> createState() => _FoodTileState();
@@ -274,90 +315,114 @@ class _FoodTileState extends ConsumerState<_FoodTile> {
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Column(
-        children: [
-          ListTile(
-            title: Text(
-              widget.food.name,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-            ),
-            subtitle: Text(
-              '${widget.food.calories.toStringAsFixed(2)} kcal per ${widget.food.unit} '
-              '• default ${_formatQty(widget.food.defaultQty)} ${widget.food.unit}',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: _quantity > widget.food.incrementBy
-                      ? () => setState(() {
-                            _setQuantity(_quantity - widget.food.incrementBy);
-                          })
-                      : null,
-                ),
-                SizedBox(
-                  width: 50,
-                  child: TextField(
-                    textAlign: TextAlign.center,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
-                      border: OutlineInputBorder(),
-                    ),
-                    controller: _quantityController,
-                    onChanged: (value) {
-                      final parsed = double.tryParse(value);
-                      if (parsed != null && parsed > 0) {
-                        setState(() => _quantity = parsed);
-                      }
-                    },
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () => setState(() {
-                    _setQuantity(_quantity + widget.food.incrementBy);
-                  }),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: _addEntry,
-                  child: const Text('Add'),
-                ),
-              ],
-            ),
-            onTap: () => setState(() => _expanded = !_expanded),
-          ),
-
-          // Expanded nutrient details
-          if (_expanded || _quantity != widget.food.defaultQty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Row(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => _expanded = !_expanded),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _NutrientChip(
-                    label: 'Cal',
-                    value: nutrients['calories']!.round().toString(),
+                  Expanded(
+                    flex: 3,
+                    child: Text(
+                      widget.food.name,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 16,
+                      ),
+                    ),
                   ),
-                  _NutrientChip(
-                    label: 'P',
-                    value: '${nutrients['protein']!.round()}g',
-                  ),
-                  _NutrientChip(
-                    label: 'C',
-                    value: '${nutrients['carbs']!.round()}g',
-                  ),
-                  _NutrientChip(
-                    label: 'F',
-                    value: '${nutrients['fat']!.round()}g',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      '${widget.food.calories.toStringAsFixed(2)} kcal per ${widget.food.unit}\n'
+                      'default ${_formatQty(widget.food.defaultQty)} ${widget.food.unit}',
+                      textAlign: TextAlign.end,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
                   ),
                 ],
               ),
-            ),
-        ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: _quantity > widget.food.incrementBy
+                        ? () => setState(() {
+                              _setQuantity(
+                                _quantity - widget.food.incrementBy,
+                              );
+                            })
+                        : null,
+                  ),
+                  SizedBox(
+                    width: 72,
+                    child: TextField(
+                      textAlign: TextAlign.center,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        border: OutlineInputBorder(),
+                      ),
+                      controller: _quantityController,
+                      onTap: () => setState(() => _expanded = true),
+                      onChanged: (value) {
+                        final parsed = double.tryParse(value);
+                        if (parsed != null && parsed > 0) {
+                          setState(() => _quantity = parsed);
+                        }
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: () => setState(() {
+                      _setQuantity(_quantity + widget.food.incrementBy);
+                    }),
+                  ),
+                  const Spacer(),
+                  FilledButton(
+                    onPressed: _addEntry,
+                    child: const Text('Add'),
+                  ),
+                ],
+              ),
+              if (_expanded || _quantity != widget.food.defaultQty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _NutrientChip(
+                      label: 'Cal',
+                      value: nutrients['calories']!.round().toString(),
+                    ),
+                    _NutrientChip(
+                      label: 'Prot',
+                      value: '${nutrients['protein']!.round()}g',
+                    ),
+                    _NutrientChip(
+                      label: 'Carb',
+                      value: '${nutrients['carbs']!.round()}g',
+                    ),
+                    _NutrientChip(
+                      label: 'Fat',
+                      value: '${nutrients['fat']!.round()}g',
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -372,7 +437,6 @@ class _NutrientChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.grey[200],

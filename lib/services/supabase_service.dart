@@ -92,8 +92,13 @@ class SupabaseService {
   }
 
   Future<Entry> addEntry(Entry entry) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw StateError('Must be signed in to add entries');
+    }
+
     final data = entry.toJson();
-    data['user_id'] = currentUserId;
+    data['user_id'] = userId;
 
     final response =
         await _client.from('entries').insert(data).select().single();
@@ -148,7 +153,19 @@ class SupabaseService {
     final endDate = DateTime.now();
     final startDate = endDate.subtract(Duration(days: days));
 
-    final entries = await getEntriesForDateRange(startDate, endDate);
+    return getCalorieHistoryForRange(startDate, endDate);
+  }
+
+  Future<Map<DateTime, double>> getCalorieHistoryForRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final normalizedStart =
+        DateTime(startDate.year, startDate.month, startDate.day);
+    final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day);
+
+    final entries =
+        await getEntriesForDateRange(normalizedStart, normalizedEnd);
 
     final Map<DateTime, double> history = {};
     for (final entry in entries) {

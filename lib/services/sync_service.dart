@@ -47,7 +47,7 @@ class SyncService {
     // since we want the ID from Supabase.
     // However, if we want offline support, we'd generate a local ID.
     // Let's assume online for management for now, but handle the sync properly.
-    
+
     if (await isOnline()) {
       await _supabase.addFood(food);
       // We don't need to manually update cache here because invalidating the provider
@@ -79,13 +79,13 @@ class SyncService {
     if (await isOnline()) {
       try {
         final entries = await _supabase.getEntriesForDate(date);
-        
+
         // Update local cache
         await _local.clearLocalEntriesForDate(date);
         for (final entry in entries) {
           await _local.saveEntryLocally(entry, isSynced: true);
         }
-        
+
         return entries;
       } catch (e) {
         return await _local.getLocalEntriesForDate(date);
@@ -97,9 +97,8 @@ class SyncService {
 
   Future<Entry> addEntry(Entry entry) async {
     // Generate local ID if needed
-    final entryWithId = entry.id == null 
-        ? entry.copyWith(id: _uuid.v4())
-        : entry;
+    final entryWithId =
+        entry.id == null ? entry.copyWith(id: _uuid.v4()) : entry;
 
     if (await isOnline()) {
       try {
@@ -107,9 +106,10 @@ class SyncService {
         await _local.saveEntryLocally(savedEntry, isSynced: true);
         return savedEntry;
       } catch (e) {
-        // Save locally for later sync
         await _local.saveEntryLocally(entryWithId, isSynced: false);
-        return entryWithId;
+        throw Exception(
+          'Entry saved locally, but could not sync to Supabase: $e',
+        );
       }
     } else {
       // Save locally for later sync
@@ -155,10 +155,10 @@ class SyncService {
     if (!await isOnline()) return;
 
     _isSyncing = true;
-    
+
     try {
       final unsyncedEntries = await _local.getUnsyncedEntries();
-      
+
       for (final entry in unsyncedEntries) {
         try {
           await _supabase.addEntry(entry);
@@ -192,7 +192,7 @@ class SyncService {
 
   Future<void> updateUserTargets(UserTargets targets) async {
     await _local.cacheUserTargets(targets);
-    
+
     if (await isOnline()) {
       try {
         await _supabase.updateUserTargets(targets);
@@ -205,13 +205,55 @@ class SyncService {
   // ==================== HISTORY ====================
 
   Future<Map<DateTime, double>> getCalorieHistory(int days) async {
+    final endDate = DateTime.now();
+    final startDate = endDate.subtract(Duration(days: days));
+
+    return getCalorieHistoryForRange(startDate, endDate);
+  }
+
+  Future<Map<DateTime, double>> getCalorieHistoryForRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final normalizedStart =
+        DateTime(startDate.year, startDate.month, startDate.day);
+    final normalizedEnd = DateTime(endDate.year, endDate.month, endDate.day);
+
     if (await isOnline()) {
       try {
-        return await _supabase.getCalorieHistory(days);
+        final history = await _supabase.getCalorieHistoryForRange(
+          normalizedStart,
+          normalizedEnd,
+        );
+        final entries = await _supabase.getEntriesForDateRange(
+          normalizedStart,
+          normalizedEnd,
+        );
+
+        for (final entry in entries) {
+          await _local.saveEntryLocally(entry, isSynced: true);
+        }
+
+        return history;
       } catch (e) {
-        return {};
+        return _calorieHistoryFromEntries(
+          await _local.getLocalEntriesForDateRange(
+              normalizedStart, normalizedEnd),
+        );
       }
     }
-    return {};
+    return _calorieHistoryFromEntries(
+      await _local.getLocalEntriesForDateRange(normalizedStart, normalizedEnd),
+    );
+  }
+
+  Map<DateTime, double> _calorieHistoryFromEntries(List<Entry> entries) {
+    final history = <DateTime, double>{};
+    for (final entry in entries) {
+      final dateOnly =
+          DateTime(entry.date.year, entry.date.month, entry.date.day);
+      history[dateOnly] = (history[dateOnly] ?? 0) + entry.calories;
+    }
+    return history;
   }
 }

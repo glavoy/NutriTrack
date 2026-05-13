@@ -139,7 +139,8 @@ class LocalDatabase {
 
     // Indexes
     await db.execute('CREATE INDEX idx_entries_date ON entries_local(date)');
-    await db.execute('CREATE INDEX idx_entries_synced ON entries_local(is_synced)');
+    await db
+        .execute('CREATE INDEX idx_entries_synced ON entries_local(is_synced)');
   }
 
   // ==================== FOODS CACHE ====================
@@ -147,10 +148,10 @@ class LocalDatabase {
   Future<void> cacheFoods(List<Food> foods) async {
     final db = await database;
     final batch = db.batch();
-    
+
     // Clear existing cache
     batch.delete('foods_cache');
-    
+
     // Insert new foods
     for (final food in foods) {
       batch.insert('foods_cache', {
@@ -177,14 +178,14 @@ class LocalDatabase {
         'created_at': food.createdAt?.toIso8601String(),
       });
     }
-    
+
     await batch.commit(noResult: true);
   }
 
   Future<List<Food>> getCachedFoods() async {
     final db = await database;
     final results = await db.query('foods_cache', orderBy: 'name');
-    
+
     return results.map((json) {
       return Food(
         id: json['id'] as String?,
@@ -207,7 +208,7 @@ class LocalDatabase {
         magnesium: (json['magnesium'] as num?)?.toDouble() ?? 0,
         cholesterol: (json['cholesterol'] as num?)?.toDouble() ?? 0,
         isDefault: json['is_default'] == 1,
-        createdAt: json['created_at'] != null 
+        createdAt: json['created_at'] != null
             ? DateTime.parse(json['created_at'] as String)
             : null,
       );
@@ -242,7 +243,8 @@ class LocalDatabase {
         'iron': entry.iron,
         'magnesium': entry.magnesium,
         'cholesterol': entry.cholesterol,
-        'created_at': entry.createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        'created_at': entry.createdAt?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
         'is_synced': isSynced ? 1 : 0,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -252,14 +254,32 @@ class LocalDatabase {
   Future<List<Entry>> getLocalEntriesForDate(DateTime date) async {
     final db = await database;
     final dateStr = date.toIso8601String().split('T')[0];
-    
+
     final results = await db.query(
       'entries_local',
       where: 'date = ?',
       whereArgs: [dateStr],
       orderBy: 'created_at',
     );
-    
+
+    return results.map((json) => _entryFromLocalJson(json)).toList();
+  }
+
+  Future<List<Entry>> getLocalEntriesForDateRange(
+    DateTime start,
+    DateTime end,
+  ) async {
+    final db = await database;
+    final startStr = start.toIso8601String().split('T')[0];
+    final endStr = end.toIso8601String().split('T')[0];
+
+    final results = await db.query(
+      'entries_local',
+      where: 'date >= ? AND date <= ?',
+      whereArgs: [startStr, endStr],
+      orderBy: 'date DESC, created_at',
+    );
+
     return results.map((json) => _entryFromLocalJson(json)).toList();
   }
 
@@ -270,7 +290,7 @@ class LocalDatabase {
       where: 'is_synced = ?',
       whereArgs: [0],
     );
-    
+
     return results.map((json) => _entryFromLocalJson(json)).toList();
   }
 
@@ -326,7 +346,7 @@ class LocalDatabase {
       iron: (json['iron'] as num?)?.toDouble() ?? 0,
       magnesium: (json['magnesium'] as num?)?.toDouble() ?? 0,
       cholesterol: (json['cholesterol'] as num?)?.toDouble() ?? 0,
-      createdAt: json['created_at'] != null 
+      createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : null,
       isSynced: json['is_synced'] == 1,
@@ -363,9 +383,9 @@ class LocalDatabase {
   Future<UserTargets?> getCachedUserTargets() async {
     final db = await database;
     final results = await db.query('user_targets_cache', limit: 1);
-    
+
     if (results.isEmpty) return null;
-    
+
     final json = results.first;
     return UserTargets(
       id: json['id'] as String?,

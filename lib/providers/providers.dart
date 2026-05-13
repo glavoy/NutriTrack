@@ -58,9 +58,16 @@ final entriesByMealProvider = Provider<Map<Meal, List<Entry>>>((ref) {
 });
 
 // Calorie history for charts
-final calorieHistoryProvider = FutureProvider.family<Map<DateTime, double>, int>((ref, days) async {
+final calorieHistoryProvider =
+    FutureProvider.family<Map<DateTime, double>, int>((ref, days) async {
   final syncService = ref.watch(syncServiceProvider);
   return await syncService.getCalorieHistory(days);
+});
+
+final calorieHistoryRangeProvider = FutureProvider.family<Map<DateTime, double>,
+    ({DateTime start, DateTime end})>((ref, range) async {
+  final syncService = ref.watch(syncServiceProvider);
+  return await syncService.getCalorieHistoryForRange(range.start, range.end);
 });
 
 // Entry actions notifier
@@ -68,13 +75,16 @@ class EntryNotifier extends StateNotifier<AsyncValue<void>> {
   final SyncService _syncService;
   final Ref _ref;
 
-  EntryNotifier(this._syncService, this._ref) : super(const AsyncValue.data(null));
+  EntryNotifier(this._syncService, this._ref)
+      : super(const AsyncValue.data(null));
 
   Future<void> addEntry(Entry entry) async {
     state = const AsyncValue.loading();
     try {
       await _syncService.addEntry(entry);
       _ref.invalidate(entriesProvider);
+      _ref.invalidate(calorieHistoryProvider);
+      _ref.invalidate(calorieHistoryRangeProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -86,6 +96,8 @@ class EntryNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       await _syncService.deleteEntry(id);
       _ref.invalidate(entriesProvider);
+      _ref.invalidate(calorieHistoryProvider);
+      _ref.invalidate(calorieHistoryRangeProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -97,6 +109,8 @@ class EntryNotifier extends StateNotifier<AsyncValue<void>> {
     try {
       await _syncService.updateEntry(entry);
       _ref.invalidate(entriesProvider);
+      _ref.invalidate(calorieHistoryProvider);
+      _ref.invalidate(calorieHistoryRangeProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -104,7 +118,8 @@ class EntryNotifier extends StateNotifier<AsyncValue<void>> {
   }
 }
 
-final entryNotifierProvider = StateNotifierProvider<EntryNotifier, AsyncValue<void>>((ref) {
+final entryNotifierProvider =
+    StateNotifierProvider<EntryNotifier, AsyncValue<void>>((ref) {
   final syncService = ref.watch(syncServiceProvider);
   return EntryNotifier(syncService, ref);
 });
@@ -114,7 +129,8 @@ class FoodNotifier extends StateNotifier<AsyncValue<void>> {
   final SyncService _syncService;
   final Ref _ref;
 
-  FoodNotifier(this._syncService, this._ref) : super(const AsyncValue.data(null));
+  FoodNotifier(this._syncService, this._ref)
+      : super(const AsyncValue.data(null));
 
   Future<void> addFood(Food food) async {
     state = const AsyncValue.loading();
@@ -150,7 +166,8 @@ class FoodNotifier extends StateNotifier<AsyncValue<void>> {
   }
 }
 
-final foodNotifierProvider = StateNotifierProvider<FoodNotifier, AsyncValue<void>>((ref) {
+final foodNotifierProvider =
+    StateNotifierProvider<FoodNotifier, AsyncValue<void>>((ref) {
   final syncService = ref.watch(syncServiceProvider);
   return FoodNotifier(syncService, ref);
 });
@@ -165,7 +182,7 @@ final foodSearchQueryProvider = StateProvider<String>((ref) => '');
 final filteredFoodsProvider = Provider<AsyncValue<List<Food>>>((ref) {
   final foodsAsync = ref.watch(foodsProvider);
   final query = ref.watch(foodSearchQueryProvider).toLowerCase();
-  
+
   return foodsAsync.whenData((foods) {
     if (query.isEmpty) return foods;
     return foods.where((f) => f.name.toLowerCase().contains(query)).toList();
