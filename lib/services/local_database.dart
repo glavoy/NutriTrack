@@ -283,6 +283,28 @@ class LocalDatabase {
     return results.map((json) => _entryFromLocalJson(json)).toList();
   }
 
+  Future<List<Entry>> getLocalEntriesForFood(String foodId) async {
+    final db = await database;
+
+    final results = await db.query(
+      'entries_local',
+      where: 'food_id = ?',
+      whereArgs: [foodId],
+      orderBy: 'date DESC, created_at',
+    );
+
+    return results.map((json) => _entryFromLocalJson(json)).toList();
+  }
+
+  Future<void> saveEntriesLocally(
+    List<Entry> entries, {
+    bool isSynced = false,
+  }) async {
+    for (final entry in entries) {
+      await saveEntryLocally(entry, isSynced: isSynced);
+    }
+  }
+
   Future<List<Entry>> getUnsyncedEntries() async {
     final db = await database;
     final results = await db.query(

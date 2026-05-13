@@ -91,6 +91,16 @@ class SupabaseService {
     return (response as List).map((json) => Entry.fromJson(json)).toList();
   }
 
+  Future<List<Entry>> getEntriesForFood(String foodId) async {
+    final response = await _client
+        .from('entries')
+        .select()
+        .eq('food_id', foodId)
+        .order('date', ascending: false);
+
+    return (response as List).map((json) => Entry.fromJson(json)).toList();
+  }
+
   Future<Entry> addEntry(Entry entry) async {
     final userId = currentUserId;
     if (userId == null) {
@@ -108,6 +118,12 @@ class SupabaseService {
 
   Future<void> updateEntry(Entry entry) async {
     await _client.from('entries').update(entry.toJson()).eq('id', entry.id!);
+  }
+
+  Future<void> updateEntries(List<Entry> entries) async {
+    for (final entry in entries) {
+      await updateEntry(entry);
+    }
   }
 
   Future<void> deleteEntry(String id) async {

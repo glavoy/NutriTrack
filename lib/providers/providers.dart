@@ -164,6 +164,21 @@ class FoodNotifier extends StateNotifier<AsyncValue<void>> {
       state = AsyncValue.error(e, st);
     }
   }
+
+  Future<int> recalculateEntriesForFood(Food food) async {
+    state = const AsyncValue.loading();
+    try {
+      final updatedCount = await _syncService.recalculateEntriesForFood(food);
+      _ref.invalidate(entriesProvider);
+      _ref.invalidate(calorieHistoryProvider);
+      _ref.invalidate(calorieHistoryRangeProvider);
+      state = const AsyncValue.data(null);
+      return updatedCount;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
 }
 
 final foodNotifierProvider =

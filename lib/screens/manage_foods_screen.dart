@@ -39,6 +39,13 @@ class _ManageFoodsScreenState extends ConsumerState<ManageFoodsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Foods'),
+        actions: [
+          IconButton(
+            onPressed: () => ref.invalidate(foodsProvider),
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh foods',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -77,7 +84,7 @@ class _ManageFoodsScreenState extends ConsumerState<ManageFoodsScreen> {
                       ),
                       trailing: food.isDefault
                           ? const Chip(label: Text('Standard'))
-                          : const Icon(Icons.chevron_right),
+                          : const Chip(label: Text('My Food')),
                       onTap: () => _openFoodForm(food),
                       onLongPress:
                           food.isDefault ? null : () => _confirmDelete(food),
@@ -136,6 +143,7 @@ class FoodFormScreen extends ConsumerStatefulWidget {
 class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isSaving = false;
+  bool _isRecalculating = false;
 
   bool get _isStandardFood => widget.food?.isDefault ?? false;
 
@@ -271,6 +279,58 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
     }
   }
 
+  Future<void> _recalculateEntries() async {
+    final food = widget.food;
+    if (food == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Recalculate Entries'),
+        content: Text(
+          'Update every logged entry that uses "${food.name}" with the current '
+          'food nutrition values? This rewrites historical totals for that food.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Recalculate'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isRecalculating = true);
+
+    try {
+      final count = await ref
+          .read(foodNotifierProvider.notifier)
+          .recalculateEntriesForFood(food);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Recalculated $count entries')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRecalculating = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -389,6 +449,31 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
                 ),
               );
             }),
+            if (widget.food != null) ...[
+              const SizedBox(height: 8),
+              const Divider(),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _isRecalculating ? null : _recalculateEntries,
+                icon: _isRecalculating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.sync),
+                label: const Text('Recalculate logged entries for this food'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Temporary development tool: rewrites existing entries linked '
+                'to this food using the current food values.',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ],
         ),
       ),

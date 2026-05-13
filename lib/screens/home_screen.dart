@@ -31,6 +31,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // Sync pending entries when app starts
     Future.microtask(() {
       ref.read(syncServiceProvider).syncPendingEntries();
+      ref.read(foodsProvider.future);
     });
   }
 

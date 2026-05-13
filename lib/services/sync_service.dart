@@ -73,6 +73,45 @@ class SyncService {
     }
   }
 
+  Future<int> recalculateEntriesForFood(Food food) async {
+    final foodId = food.id;
+    if (foodId == null) {
+      throw ArgumentError('Food must have an id before entries can be updated');
+    }
+    if (!await isOnline()) {
+      throw Exception('Must be online to recalculate logged entries');
+    }
+
+    final entries = await _supabase.getEntriesForFood(foodId);
+    await _local.saveEntriesLocally(entries, isSynced: true);
+    if (entries.isEmpty) return 0;
+
+    final recalculatedEntries = entries.map((entry) {
+      final nutrients = food.scaledNutrients(entry.quantity);
+      return entry.copyWith(
+        foodName: food.name,
+        unit: food.unit,
+        calories: nutrients['calories'],
+        fat: nutrients['fat'],
+        saturatedFat: nutrients['saturatedFat'],
+        carbs: nutrients['carbs'],
+        fiber: nutrients['fiber'],
+        sugar: nutrients['sugar'],
+        protein: nutrients['protein'],
+        sodium: nutrients['sodium'],
+        potassium: nutrients['potassium'],
+        calcium: nutrients['calcium'],
+        iron: nutrients['iron'],
+        magnesium: nutrients['magnesium'],
+        cholesterol: nutrients['cholesterol'],
+      );
+    }).toList();
+
+    await _supabase.updateEntries(recalculatedEntries);
+    await _local.saveEntriesLocally(recalculatedEntries, isSynced: true);
+
+    return recalculatedEntries.length;
+  }
   // ==================== ENTRIES ====================
 
   Future<List<Entry>> getEntriesForDate(DateTime date) async {
