@@ -8,12 +8,18 @@ import '../services/local_database.dart';
 class MealCard extends ConsumerWidget {
   final Meal meal;
   final List<Entry> entries;
+  final bool isExpanded;
+  final bool canCopyToToday;
+  final ValueChanged<bool> onExpansionChanged;
   final VoidCallback onAddPressed;
 
   const MealCard({
     super.key,
     required this.meal,
     required this.entries,
+    required this.isExpanded,
+    required this.canCopyToToday,
+    required this.onExpansionChanged,
     required this.onAddPressed,
   });
 
@@ -30,6 +36,93 @@ class MealCard extends ConsumerWidget {
     }
   }
 
+  Entry _copyEntryForToday(Entry entry) {
+    final today = DateUtils.dateOnly(DateTime.now());
+    return Entry(
+      date: today,
+      meal: entry.meal,
+      foodName: entry.foodName,
+      quantity: entry.quantity,
+      unit: entry.unit,
+      foodId: entry.foodId,
+      calories: entry.calories,
+      fat: entry.fat,
+      saturatedFat: entry.saturatedFat,
+      carbs: entry.carbs,
+      fiber: entry.fiber,
+      sugar: entry.sugar,
+      protein: entry.protein,
+      sodium: entry.sodium,
+      potassium: entry.potassium,
+      calcium: entry.calcium,
+      iron: entry.iron,
+      magnesium: entry.magnesium,
+      cholesterol: entry.cholesterol,
+    );
+  }
+
+  Future<void> _copyMealToToday(BuildContext context, WidgetRef ref) async {
+    for (final entry in entries) {
+      await ref.read(entryNotifierProvider.notifier).addEntry(
+            _copyEntryForToday(entry),
+          );
+    }
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Copied ${entries.length} ${entries.length == 1 ? 'item' : 'items'} '
+          'from ${meal.displayName} to today',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showMealContextMenu(
+    BuildContext context,
+    WidgetRef ref,
+    Offset position,
+  ) async {
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+
+    final value = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        position & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      items: canCopyToToday
+          ? [
+              PopupMenuItem<String>(
+                value: 'copy_to_today',
+                enabled: entries.isNotEmpty,
+                child: const Row(
+                  children: [
+                    Icon(Icons.today, size: 20),
+                    SizedBox(width: 12),
+                    Text('Copy meal to today'),
+                  ],
+                ),
+              ),
+            ]
+          : [
+              const PopupMenuItem<String>(
+                enabled: false,
+                child: Text('No actions available'),
+              ),
+            ],
+    );
+
+    if (!context.mounted) return;
+
+    if (value == 'copy_to_today') {
+      _copyMealToToday(context, ref);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final totalCalories = entries.fold<double>(0, (sum, e) => sum + e.calories);
@@ -39,37 +132,56 @@ class MealCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          ListTile(
-            leading: Icon(
-              _getMealIcon(),
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            title: Text(
-              meal.displayName,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${totalCalories.round()} kcal',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onSecondaryTapDown: (details) {
+              _showMealContextMenu(context, ref, details.globalPosition);
+            },
+            onLongPressStart: (details) {
+              _showMealContextMenu(context, ref, details.globalPosition);
+            },
+            child: ListTile(
+              leading: Icon(
+                _getMealIcon(),
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: Text(
+                meal.displayName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              onTap: () => onExpansionChanged(!isExpanded),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${totalCalories.round()} kcal',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: onAddPressed,
-                  tooltip: 'Add food',
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: onAddPressed,
+                    tooltip: 'Add food',
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
+                    ),
+                    onPressed: () => onExpansionChanged(!isExpanded),
+                    tooltip: isExpanded ? 'Collapse' : 'Expand',
+                  ),
+                ],
+              ),
             ),
           ),
 
           // Entries list
-          if (entries.isEmpty)
+          if (!isExpanded)
+            const SizedBox.shrink()
+          else if (entries.isEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Text(
@@ -88,7 +200,10 @@ class MealCard extends ConsumerWidget {
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final entry = entries[index];
-                return _EntryTile(entry: entry);
+                return _EntryTile(
+                  entry: entry,
+                  canCopyToToday: canCopyToToday,
+                );
               },
             ),
         ],
@@ -99,20 +214,76 @@ class MealCard extends ConsumerWidget {
 
 class _EntryTile extends ConsumerWidget {
   final Entry entry;
+  final bool canCopyToToday;
 
-  const _EntryTile({required this.entry});
+  const _EntryTile({
+    required this.entry,
+    required this.canCopyToToday,
+  });
 
-  void _showContextMenu(BuildContext context, WidgetRef ref, Offset position) {
+  Entry _copyEntryForToday() {
+    final today = DateUtils.dateOnly(DateTime.now());
+    return Entry(
+      date: today,
+      meal: entry.meal,
+      foodName: entry.foodName,
+      quantity: entry.quantity,
+      unit: entry.unit,
+      foodId: entry.foodId,
+      calories: entry.calories,
+      fat: entry.fat,
+      saturatedFat: entry.saturatedFat,
+      carbs: entry.carbs,
+      fiber: entry.fiber,
+      sugar: entry.sugar,
+      protein: entry.protein,
+      sodium: entry.sodium,
+      potassium: entry.potassium,
+      calcium: entry.calcium,
+      iron: entry.iron,
+      magnesium: entry.magnesium,
+      cholesterol: entry.cholesterol,
+    );
+  }
+
+  Future<void> _copyToToday(BuildContext context, WidgetRef ref) async {
+    await ref
+        .read(entryNotifierProvider.notifier)
+        .addEntry(_copyEntryForToday());
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Copied ${entry.foodName} to today')),
+    );
+  }
+
+  Future<void> _showContextMenu(
+    BuildContext context,
+    WidgetRef ref,
+    Offset position,
+  ) async {
     final RenderBox overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox;
 
-    showMenu<String>(
+    final value = await showMenu<String>(
       context: context,
       position: RelativeRect.fromRect(
         position & const Size(40, 40),
         Offset.zero & overlay.size,
       ),
       items: [
+        if (canCopyToToday)
+          const PopupMenuItem<String>(
+            value: 'copy_to_today',
+            child: Row(
+              children: [
+                Icon(Icons.today, size: 20),
+                SizedBox(width: 12),
+                Text('Copy to today'),
+              ],
+            ),
+          ),
         const PopupMenuItem<String>(
           value: 'edit',
           child: Row(
@@ -134,13 +305,17 @@ class _EntryTile extends ConsumerWidget {
           ),
         ),
       ],
-    ).then((value) {
-      if (value == 'edit') {
-        _showEditDialog(context, ref);
-      } else if (value == 'delete') {
-        _showDeleteDialog(context, ref);
-      }
-    });
+    );
+
+    if (!context.mounted) return;
+
+    if (value == 'copy_to_today') {
+      _copyToToday(context, ref);
+    } else if (value == 'edit') {
+      _showEditDialog(context, ref);
+    } else if (value == 'delete') {
+      _showDeleteDialog(context, ref);
+    }
   }
 
   Future<void> _showDeleteDialog(BuildContext context, WidgetRef ref) async {
@@ -202,8 +377,10 @@ class _EntryTile extends ConsumerWidget {
 
     // Calculate per-unit values from current entry
     // We use the entry's values to preserve the specific log (e.g. if nutrients changed since then)
-    final perUnitCalories = entry.quantity > 0 ? entry.calories / entry.quantity : 0;
-    final perUnitProtein = entry.quantity > 0 ? entry.protein / entry.quantity : 0;
+    final perUnitCalories =
+        entry.quantity > 0 ? entry.calories / entry.quantity : 0;
+    final perUnitProtein =
+        entry.quantity > 0 ? entry.protein / entry.quantity : 0;
     final perUnitCarbs = entry.quantity > 0 ? entry.carbs / entry.quantity : 0;
     final perUnitFat = entry.quantity > 0 ? entry.fat / entry.quantity : 0;
 
@@ -237,8 +414,10 @@ class _EntryTile extends ConsumerWidget {
                                   previewQty -= step;
                                   if (previewQty < 0) previewQty = 0;
                                   // Fix precision
-                                  previewQty = double.parse(previewQty.toStringAsFixed(3));
-                                  quantityController.text = formatQty(previewQty);
+                                  previewQty = double.parse(
+                                      previewQty.toStringAsFixed(3));
+                                  quantityController.text =
+                                      formatQty(previewQty);
                                 });
                               }
                             : null,
@@ -288,7 +467,8 @@ class _EntryTile extends ConsumerWidget {
                           setState(() {
                             previewQty += step;
                             // Fix precision
-                            previewQty = double.parse(previewQty.toStringAsFixed(3));
+                            previewQty =
+                                double.parse(previewQty.toStringAsFixed(3));
                             quantityController.text = formatQty(previewQty);
                           });
                         },

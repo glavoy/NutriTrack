@@ -21,6 +21,10 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  final Map<Meal, bool> _expandedMeals = {
+    for (final meal in Meal.values) meal: true,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -236,6 +240,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: MealCard(
                         meal: meal,
                         entries: entriesByMeal[meal] ?? [],
+                        isExpanded: _expandedMeals[meal] ?? true,
+                        canCopyToToday: !isToday,
+                        onExpansionChanged: (expanded) {
+                          setState(() {
+                            _expandedMeals[meal] = expanded;
+                          });
+                        },
                         onAddPressed: () {
                           ref.read(selectedMealProvider.notifier).state = meal;
                           _showQuickAdd();
@@ -248,11 +259,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showQuickAdd,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Food'),
       ),
     );
   }
