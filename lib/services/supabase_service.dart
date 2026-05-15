@@ -211,12 +211,20 @@ class SupabaseService {
     final endDate = DateTime.now();
     final startDate = endDate.subtract(Duration(days: days));
 
-    return getCalorieHistoryForRange(startDate, endDate);
+    return getNutrientHistoryForRange(startDate, endDate, 'calories');
   }
 
   Future<Map<DateTime, double>> getCalorieHistoryForRange(
     DateTime startDate,
     DateTime endDate,
+  ) async {
+    return getNutrientHistoryForRange(startDate, endDate, 'calories');
+  }
+
+  Future<Map<DateTime, double>> getNutrientHistoryForRange(
+    DateTime startDate,
+    DateTime endDate,
+    String nutrient,
   ) async {
     final normalizedStart =
         DateTime(startDate.year, startDate.month, startDate.day);
@@ -229,9 +237,43 @@ class SupabaseService {
     for (final entry in entries) {
       final dateOnly =
           DateTime(entry.date.year, entry.date.month, entry.date.day);
-      history[dateOnly] = (history[dateOnly] ?? 0) + entry.calories;
+      history[dateOnly] =
+          (history[dateOnly] ?? 0) + _entryNutrientValue(entry, nutrient);
     }
 
     return history;
+  }
+
+  double _entryNutrientValue(Entry entry, String nutrient) {
+    switch (nutrient) {
+      case 'calories':
+        return entry.calories;
+      case 'fat':
+        return entry.fat;
+      case 'saturatedFat':
+        return entry.saturatedFat;
+      case 'carbs':
+        return entry.carbs;
+      case 'fiber':
+        return entry.fiber;
+      case 'sugar':
+        return entry.sugar;
+      case 'protein':
+        return entry.protein;
+      case 'sodium':
+        return entry.sodium;
+      case 'potassium':
+        return entry.potassium;
+      case 'calcium':
+        return entry.calcium;
+      case 'iron':
+        return entry.iron;
+      case 'magnesium':
+        return entry.magnesium;
+      case 'cholesterol':
+        return entry.cholesterol;
+      default:
+        return 0;
+    }
   }
 }

@@ -76,6 +76,17 @@ final calorieHistoryRangeProvider = FutureProvider.family<Map<DateTime, double>,
   return await syncService.getCalorieHistoryForRange(range.start, range.end);
 });
 
+final nutrientHistoryRangeProvider = FutureProvider.family<
+    Map<DateTime, double>,
+    ({DateTime start, DateTime end, String nutrient})>((ref, range) async {
+  final syncService = ref.watch(syncServiceProvider);
+  return await syncService.getNutrientHistoryForRange(
+    range.start,
+    range.end,
+    range.nutrient,
+  );
+});
+
 // Entry actions notifier
 class EntryNotifier extends StateNotifier<AsyncValue<void>> {
   final SyncService _syncService;
@@ -91,6 +102,7 @@ class EntryNotifier extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(entriesProvider);
       _ref.invalidate(calorieHistoryProvider);
       _ref.invalidate(calorieHistoryRangeProvider);
+      _ref.invalidate(nutrientHistoryRangeProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -104,6 +116,7 @@ class EntryNotifier extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(entriesProvider);
       _ref.invalidate(calorieHistoryProvider);
       _ref.invalidate(calorieHistoryRangeProvider);
+      _ref.invalidate(nutrientHistoryRangeProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -117,6 +130,7 @@ class EntryNotifier extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(entriesProvider);
       _ref.invalidate(calorieHistoryProvider);
       _ref.invalidate(calorieHistoryRangeProvider);
+      _ref.invalidate(nutrientHistoryRangeProvider);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -178,6 +192,7 @@ class FoodNotifier extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(entriesProvider);
       _ref.invalidate(calorieHistoryProvider);
       _ref.invalidate(calorieHistoryRangeProvider);
+      _ref.invalidate(nutrientHistoryRangeProvider);
       state = const AsyncValue.data(null);
       return updatedCount;
     } catch (e, st) {

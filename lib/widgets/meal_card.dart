@@ -134,39 +134,59 @@ class MealCard extends ConsumerWidget {
           // Header
           GestureDetector(
             behavior: HitTestBehavior.opaque,
+            onTap: () => onExpansionChanged(!isExpanded),
             onSecondaryTapDown: (details) {
               _showMealContextMenu(context, ref, details.globalPosition);
             },
             onLongPressStart: (details) {
               _showMealContextMenu(context, ref, details.globalPosition);
             },
-            child: ListTile(
-              leading: Icon(
-                _getMealIcon(),
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: Text(
-                meal.displayName,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              onTap: () => onExpansionChanged(!isExpanded),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+              child: Row(
                 children: [
+                  Icon(
+                    _getMealIcon(),
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      meal.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     '${totalCalories.round()} kcal',
+                    maxLines: 1,
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 4),
                   IconButton(
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    padding: EdgeInsets.zero,
                     icon: const Icon(Icons.add_circle_outline),
                     onPressed: onAddPressed,
                     tooltip: 'Add food',
                   ),
                   IconButton(
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    padding: EdgeInsets.zero,
                     icon: Icon(
                       isExpanded ? Icons.expand_less : Icons.expand_more,
                     ),

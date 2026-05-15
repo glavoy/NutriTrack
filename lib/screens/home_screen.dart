@@ -103,7 +103,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nutrition Tracker'),
+        toolbarHeight: 60,
+        titleSpacing: 16,
+        title: Image.asset(
+          'assets/branding/nutri_track_logo.png',
+          height: 60,
+          semanticLabel: 'NutriTrack',
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.restaurant_menu),

@@ -5,7 +5,51 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../models/models.dart';
 import '../providers/providers.dart';
+
+const _nutrientOptions = [
+  _NutrientOption(key: 'calories', label: 'Calories', unit: 'kcal'),
+  _NutrientOption(key: 'fat', label: 'Fat', unit: 'g'),
+  _NutrientOption(key: 'saturatedFat', label: 'Saturated Fat', unit: 'g'),
+  _NutrientOption(key: 'carbs', label: 'Carbs', unit: 'g'),
+  _NutrientOption(key: 'fiber', label: 'Fiber', unit: 'g'),
+  _NutrientOption(key: 'sugar', label: 'Sugar', unit: 'g'),
+  _NutrientOption(key: 'protein', label: 'Protein', unit: 'g'),
+  _NutrientOption(key: 'sodium', label: 'Sodium', unit: 'mg'),
+  _NutrientOption(key: 'potassium', label: 'Potassium', unit: 'mg'),
+  _NutrientOption(key: 'calcium', label: 'Calcium', unit: 'mg'),
+  _NutrientOption(key: 'iron', label: 'Iron', unit: 'mg'),
+  _NutrientOption(key: 'magnesium', label: 'Magnesium', unit: 'mg'),
+  _NutrientOption(key: 'cholesterol', label: 'Cholesterol', unit: 'mg'),
+];
+
+_NutrientOption _nutrientOptionForKey(String key) {
+  return _nutrientOptions.firstWhere(
+    (nutrient) => nutrient.key == key,
+    orElse: () => _nutrientOptions.first,
+  );
+}
+
+class _NutrientOption {
+  final String key;
+  final String label;
+  final String unit;
+
+  const _NutrientOption({
+    required this.key,
+    required this.label,
+    required this.unit,
+  });
+
+  String formatValue(double value) {
+    if (value == 0) return '0';
+    if (unit == 'kcal' || value.abs() >= 10) {
+      return value.round().toString();
+    }
+    return value.toStringAsFixed(1);
+  }
+}
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -17,6 +61,7 @@ class HistoryScreen extends ConsumerStatefulWidget {
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   late DateTime _startDate;
   late DateTime _endDate;
+  String _selectedNutrient = 'calories';
 
   @override
   void initState() {
@@ -70,13 +115,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final range = (start: _startDate, end: _endDate);
-    final historyAsync = ref.watch(calorieHistoryRangeProvider(range));
+    final nutrient = _nutrientOptionForKey(_selectedNutrient);
+    final historyAsync = ref.watch(
+      nutrientHistoryRangeProvider(
+        (start: range.start, end: range.end, nutrient: nutrient.key),
+      ),
+    );
     final targets = ref.watch(userTargetsProvider);
 
-    final targetCalories = targets.when(
-      data: (t) => t.calories,
-      loading: () => 2100.0,
-      error: (_, __) => 2100.0,
+    final targetValue = targets.when(
+      data: (t) => t.getTarget(nutrient.key),
+      loading: () => UserTargets.defaultTargets().getTarget(nutrient.key),
+      error: (_, __) => UserTargets.defaultTargets().getTarget(nutrient.key),
     );
 
     return Scaffold(
@@ -90,12 +140,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           final dates = _datesInRange();
           final trackedDates = history.keys.toList()
             ..sort((a, b) => b.compareTo(a));
-          final totalCalories = history.values.fold<double>(
+          final totalValue = history.values.fold<double>(
             0,
-            (sum, calories) => sum + calories,
+            (sum, value) => sum + value,
           );
-          final averageCalories =
-              trackedDates.isEmpty ? 0.0 : totalCalories / trackedDates.length;
+          final averageValue =
+              trackedDates.isEmpty ? 0.0 : totalValue / trackedDates.length;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -111,15 +161,22 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 ),
                 const SizedBox(height: 12),
                 _SummaryRow(
-                  averageCalories: averageCalories,
+                  averageValue: averageValue,
+                  nutrient: nutrient,
                   trackedDays: trackedDates.length,
                   totalDays: dates.length,
                 ),
                 const SizedBox(height: 12),
-                _CaloriesChartCard(
+                _NutrientChartCard(
                   dates: dates,
                   history: history,
-                  targetCalories: targetCalories,
+                  nutrient: nutrient,
+                  targetValue: targetValue,
+                  selectedNutrient: _selectedNutrient,
+                  onNutrientChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _selectedNutrient = value);
+                  },
                 ),
                 const SizedBox(height: 24),
                 const Text(
@@ -134,32 +191,45 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   const _EmptyHistory()
                 else
                   ...trackedDates.map((date) {
-                    final calories = history[date] ?? 0;
+                    final value = history[date] ?? 0;
+                    final hasTarget = targetValue > 0;
                     final percentage =
-                        (calories / targetCalories * 100).round();
-                    final isOver = calories > targetCalories;
+                        hasTarget ? (value / targetValue * 100).round() : null;
+                    final isOver = hasTarget && value > targetValue;
+                    final statusColor = !hasTarget
+                        ? Theme.of(context).colorScheme.primary
+                        : isOver
+                            ? Colors.red
+                            : Colors.green;
 
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: (isOver ? Colors.red : Colors.green)
-                              .withValues(alpha: 0.1),
+                          backgroundColor: statusColor.withValues(alpha: 0.1),
                           child: Icon(
-                            isOver ? Icons.trending_up : Icons.check,
-                            color: isOver ? Colors.red : Colors.green,
+                            !hasTarget
+                                ? Icons.query_stats
+                                : isOver
+                                    ? Icons.trending_up
+                                    : Icons.check,
+                            color: statusColor,
                           ),
                         ),
                         title: Text(
                           DateFormat('EEEE, MMM d').format(date),
                           style: const TextStyle(fontWeight: FontWeight.w500),
                         ),
-                        subtitle: Text('$percentage% of target'),
+                        subtitle: Text(
+                          hasTarget
+                              ? '$percentage% of target'
+                              : 'No target set',
+                        ),
                         trailing: Text(
-                          '${calories.round()} kcal',
+                          '${nutrient.formatValue(value)} ${nutrient.unit}',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: isOver ? Colors.red : Colors.green,
+                            color: statusColor,
                           ),
                         ),
                       ),
@@ -266,12 +336,14 @@ class _DateButton extends StatelessWidget {
 }
 
 class _SummaryRow extends StatelessWidget {
-  final double averageCalories;
+  final double averageValue;
+  final _NutrientOption nutrient;
   final int trackedDays;
   final int totalDays;
 
   const _SummaryRow({
-    required this.averageCalories,
+    required this.averageValue,
+    required this.nutrient,
     required this.trackedDays,
     required this.totalDays,
   });
@@ -283,8 +355,8 @@ class _SummaryRow extends StatelessWidget {
         Expanded(
           child: _StatCard(
             label: 'Average',
-            value: averageCalories.round().toString(),
-            unit: 'kcal/day',
+            value: nutrient.formatValue(averageValue),
+            unit: '${nutrient.unit}/day',
           ),
         ),
         const SizedBox(width: 12),
@@ -348,28 +420,36 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-class _CaloriesChartCard extends StatelessWidget {
+class _NutrientChartCard extends StatelessWidget {
   final List<DateTime> dates;
   final Map<DateTime, double> history;
-  final double targetCalories;
+  final _NutrientOption nutrient;
+  final double targetValue;
+  final String selectedNutrient;
+  final ValueChanged<String?> onNutrientChanged;
 
-  const _CaloriesChartCard({
+  const _NutrientChartCard({
     required this.dates,
     required this.history,
-    required this.targetCalories,
+    required this.nutrient,
+    required this.targetValue,
+    required this.selectedNutrient,
+    required this.onNutrientChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final maxCalories = history.values.fold<double>(
-      targetCalories,
-      (maxValue, calories) => math.max(maxValue, calories),
+    final maxValue = history.values.fold<double>(
+      targetValue,
+      (maxValue, value) => math.max(maxValue, value),
     );
-    final maxY = math.max(500, (maxCalories * 1.25 / 250).ceil() * 250);
+    final maxY = _niceCeiling(maxValue <= 0 ? 1 : maxValue * 1.15);
+    final horizontalInterval = _niceCeiling(maxY / 5);
     final labelInterval = math.max(1, (dates.length / 6).ceil());
     final primaryColor = Theme.of(context).colorScheme.primary;
     final underTargetColor = primaryColor;
     final overTargetColor = Theme.of(context).colorScheme.error;
+    final hasTarget = targetValue > 0;
 
     return Card(
       child: Padding(
@@ -377,44 +457,80 @@ class _CaloriesChartCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Calories',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Daily total with target line',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 10),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 24,
-                  height: 0,
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: Colors.green, width: 2),
-                    ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        nutrient.label,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        hasTarget
+                            ? 'Daily total with target line'
+                            : 'Daily total',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Target ${targetCalories.round()} kcal',
-                  style: const TextStyle(
-                    color: Colors.green,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 172,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: selectedNutrient,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Nutrient',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: _nutrientOptions.map((option) {
+                      return DropdownMenuItem<String>(
+                        value: option.key,
+                        child: Text(option.label),
+                      );
+                    }).toList(),
+                    onChanged: onNutrientChanged,
                   ),
                 ),
               ],
             ),
+            if (hasTarget) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 0,
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: Colors.green, width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Target ${nutrient.formatValue(targetValue)} ${nutrient.unit}',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 20),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -444,7 +560,7 @@ class _CaloriesChartCard extends StatelessWidget {
                               final date = dates[group.x.toInt()];
                               return BarTooltipItem(
                                 '${DateFormat('MMM d').format(date)}\n'
-                                '${rod.toY.round()} kcal',
+                                '${nutrient.formatValue(rod.toY)} ${nutrient.unit}',
                                 TextStyle(
                                   color: Theme.of(context)
                                       .colorScheme
@@ -458,7 +574,7 @@ class _CaloriesChartCard extends StatelessWidget {
                         gridData: FlGridData(
                           show: true,
                           drawVerticalLine: false,
-                          horizontalInterval: 500,
+                          horizontalInterval: horizontalInterval,
                           getDrawingHorizontalLine: (value) => FlLine(
                             color: Theme.of(context)
                                 .colorScheme
@@ -472,13 +588,13 @@ class _CaloriesChartCard extends StatelessWidget {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 46,
-                              interval: 500,
+                              interval: horizontalInterval,
                               getTitlesWidget: (value, meta) {
                                 if (value == 0 || value >= maxY) {
                                   return const SizedBox();
                                 }
                                 return Text(
-                                  value.round().toString(),
+                                  nutrient.formatValue(value),
                                   style: const TextStyle(fontSize: 10),
                                 );
                               },
@@ -516,23 +632,25 @@ class _CaloriesChartCard extends StatelessWidget {
                         ),
                         borderData: FlBorderData(show: false),
                         extraLinesData: ExtraLinesData(
-                          horizontalLines: [
-                            HorizontalLine(
-                              y: targetCalories,
-                              color: Colors.green,
-                              strokeWidth: 2,
-                              dashArray: [6, 4],
-                            ),
-                          ],
+                          horizontalLines: hasTarget
+                              ? [
+                                  HorizontalLine(
+                                    y: targetValue,
+                                    color: Colors.green,
+                                    strokeWidth: 2,
+                                    dashArray: [6, 4],
+                                  ),
+                                ]
+                              : [],
                         ),
                         barGroups: dates.asMap().entries.map((entry) {
-                          final calories = history[entry.value] ?? 0;
+                          final value = history[entry.value] ?? 0;
                           return BarChartGroupData(
                             x: entry.key,
                             barRods: [
                               BarChartRodData(
-                                toY: calories,
-                                color: calories > targetCalories
+                                toY: value,
+                                color: hasTarget && value > targetValue
                                     ? overTargetColor
                                     : underTargetColor,
                                 width: barWidth,
@@ -554,6 +672,29 @@ class _CaloriesChartCard extends StatelessWidget {
       ),
     );
   }
+}
+
+double _niceCeiling(double value) {
+  if (value <= 0) return 1;
+
+  final exponent = math
+      .pow(
+        10,
+        (math.log(value) / math.ln10).floor(),
+      )
+      .toDouble();
+  final fraction = value / exponent;
+  final niceFraction = fraction <= 1
+      ? 1
+      : fraction <= 2
+          ? 2
+          : fraction <= 2.5
+              ? 2.5
+              : fraction <= 5
+                  ? 5
+                  : 10;
+
+  return niceFraction * exponent;
 }
 
 class _EmptyHistory extends StatelessWidget {

@@ -1,11 +1,11 @@
 {
-    "name": "nutrition_tracker",
-    "short_name": "nutrition_tracker",
+    "name": "NutriTrack",
+    "short_name": "NutriTrack",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FBF9F1",
+    "theme_color": "#4CAF28",
+    "description": "A nutrition tracking app with Supabase backend.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

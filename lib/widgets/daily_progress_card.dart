@@ -12,7 +12,13 @@ class DailyProgressCard extends ConsumerStatefulWidget {
 }
 
 class _DailyProgressCardState extends ConsumerState<DailyProgressCard> {
-  bool _expanded = false;
+  bool _cardExpanded = true;
+  bool _showMoreNutrients = false;
+
+  String _formatValue(double value) {
+    if (value % 1 == 0) return value.toInt().toString();
+    return double.parse(value.toStringAsFixed(1)).toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -145,51 +151,96 @@ class _DailyProgressCardState extends ConsumerState<DailyProgressCard> {
           ),
         ];
 
+        final calories = primaryNutrients.first;
+
         return Card(
           color: const Color(0xFFFBFCFA),
           surfaceTintColor: Colors.transparent,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Daily Progress',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () {
+              setState(() => _cardExpanded = !_cardExpanded);
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Daily Progress',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                      if (!_cardExpanded) ...[
+                        Text(
+                          '${_formatValue(calories.current)} / '
+                          '${_formatValue(calories.target)} ${calories.unit}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      IconButton(
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          setState(() => _cardExpanded = !_cardExpanded);
+                        },
+                        icon: Icon(
+                          _cardExpanded
+                              ? Icons.keyboard_arrow_up
+                              : Icons.keyboard_arrow_down,
+                        ),
+                        tooltip: _cardExpanded
+                            ? 'Collapse progress'
+                            : 'Expand progress',
+                      ),
+                    ],
+                  ),
+                  if (_cardExpanded) ...[
+                    const SizedBox(height: 12),
+                    ...primaryNutrients.map((n) => _NutrientRow(
+                          progress: n,
+                          entries: entries,
+                        )),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          setState(
+                            () => _showMoreNutrients = !_showMoreNutrients,
+                          );
+                        },
+                        icon: Icon(
+                          _showMoreNutrients
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 18,
+                        ),
+                        label: Text(_showMoreNutrients ? 'Less' : 'More'),
                       ),
                     ),
-                    TextButton.icon(
-                      onPressed: () {
-                        setState(() => _expanded = !_expanded);
-                      },
-                      icon: Icon(
-                        _expanded ? Icons.expand_less : Icons.expand_more,
-                        size: 18,
-                      ),
-                      label: Text(_expanded ? 'Less' : 'More'),
-                    ),
+                    if (_showMoreNutrients) ...[
+                      const SizedBox(height: 8),
+                      const Divider(),
+                      const SizedBox(height: 8),
+                      ...secondaryNutrients.map((n) => _NutrientRow(
+                            progress: n,
+                            entries: entries,
+                          )),
+                    ],
                   ],
-                ),
-                const SizedBox(height: 12),
-                ...primaryNutrients.map((n) => _NutrientRow(
-                      progress: n,
-                      entries: entries,
-                    )),
-                if (_expanded) ...[
-                  const SizedBox(height: 8),
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  ...secondaryNutrients.map((n) => _NutrientRow(
-                        progress: n,
-                        entries: entries,
-                      )),
                 ],
-              ],
+              ),
             ),
           ),
         );
