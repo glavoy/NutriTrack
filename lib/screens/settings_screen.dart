@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
@@ -16,6 +17,13 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _supabase = SupabaseService();
+  late final Future<PackageInfo> _packageInfoFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _packageInfoFuture = PackageInfo.fromPlatform();
+  }
 
   Future<void> _signOut() async {
     final confirmed = await showDialog<bool>(
@@ -91,8 +99,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             data: (targets) => Column(
               children: [
-                _TargetTile(label: 'Calories', value: targets.calories, unit: 'kcal'),
-                _TargetTile(label: 'Protein', value: targets.protein, unit: 'g'),
+                _TargetTile(
+                    label: 'Calories', value: targets.calories, unit: 'kcal'),
+                _TargetTile(
+                    label: 'Protein', value: targets.protein, unit: 'g'),
                 _TargetTile(label: 'Carbs', value: targets.carbs, unit: 'g'),
                 _TargetTile(label: 'Fat', value: targets.fat, unit: 'g'),
                 _TargetTile(label: 'Fiber', value: targets.fiber, unit: 'g'),
@@ -125,10 +135,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           // About section
           const _SectionHeader(title: 'About'),
-          const ListTile(
-            leading: Icon(Icons.info),
-            title: Text('Version'),
-            subtitle: Text('1.0.0'),
+          FutureBuilder<PackageInfo>(
+            future: _packageInfoFuture,
+            builder: (context, snapshot) {
+              final packageInfo = snapshot.data;
+              final versionText = packageInfo == null
+                  ? 'Loading...'
+                  : '${packageInfo.version} (${packageInfo.buildNumber})';
+
+              return ListTile(
+                leading: const Icon(Icons.info),
+                title: const Text('Version'),
+                subtitle: Text(versionText),
+              );
+            },
           ),
         ],
       ),
@@ -213,19 +233,31 @@ class _EditTargetsScreenState extends ConsumerState<EditTargetsScreen> {
   void initState() {
     super.initState();
     _controllers = {
-      'calories': TextEditingController(text: widget.targets.calories.round().toString()),
-      'protein': TextEditingController(text: widget.targets.protein.round().toString()),
-      'carbs': TextEditingController(text: widget.targets.carbs.round().toString()),
+      'calories': TextEditingController(
+          text: widget.targets.calories.round().toString()),
+      'protein': TextEditingController(
+          text: widget.targets.protein.round().toString()),
+      'carbs':
+          TextEditingController(text: widget.targets.carbs.round().toString()),
       'fat': TextEditingController(text: widget.targets.fat.round().toString()),
-      'fiber': TextEditingController(text: widget.targets.fiber.round().toString()),
-      'sugar': TextEditingController(text: widget.targets.sugar.round().toString()),
-      'saturatedFat': TextEditingController(text: widget.targets.saturatedFat.round().toString()),
-      'sodium': TextEditingController(text: widget.targets.sodium.round().toString()),
-      'potassium': TextEditingController(text: widget.targets.potassium.round().toString()),
-      'calcium': TextEditingController(text: widget.targets.calcium.round().toString()),
-      'iron': TextEditingController(text: widget.targets.iron.round().toString()),
-      'magnesium': TextEditingController(text: widget.targets.magnesium.round().toString()),
-      'cholesterol': TextEditingController(text: widget.targets.cholesterol.round().toString()),
+      'fiber':
+          TextEditingController(text: widget.targets.fiber.round().toString()),
+      'sugar':
+          TextEditingController(text: widget.targets.sugar.round().toString()),
+      'saturatedFat': TextEditingController(
+          text: widget.targets.saturatedFat.round().toString()),
+      'sodium':
+          TextEditingController(text: widget.targets.sodium.round().toString()),
+      'potassium': TextEditingController(
+          text: widget.targets.potassium.round().toString()),
+      'calcium': TextEditingController(
+          text: widget.targets.calcium.round().toString()),
+      'iron':
+          TextEditingController(text: widget.targets.iron.round().toString()),
+      'magnesium': TextEditingController(
+          text: widget.targets.magnesium.round().toString()),
+      'cholesterol': TextEditingController(
+          text: widget.targets.cholesterol.round().toString()),
     };
   }
 
@@ -242,19 +274,31 @@ class _EditTargetsScreenState extends ConsumerState<EditTargetsScreen> {
 
     try {
       final updatedTargets = widget.targets.copyWith(
-        calories: double.tryParse(_controllers['calories']!.text) ?? widget.targets.calories,
-        protein: double.tryParse(_controllers['protein']!.text) ?? widget.targets.protein,
-        carbs: double.tryParse(_controllers['carbs']!.text) ?? widget.targets.carbs,
+        calories: double.tryParse(_controllers['calories']!.text) ??
+            widget.targets.calories,
+        protein: double.tryParse(_controllers['protein']!.text) ??
+            widget.targets.protein,
+        carbs: double.tryParse(_controllers['carbs']!.text) ??
+            widget.targets.carbs,
         fat: double.tryParse(_controllers['fat']!.text) ?? widget.targets.fat,
-        fiber: double.tryParse(_controllers['fiber']!.text) ?? widget.targets.fiber,
-        sugar: double.tryParse(_controllers['sugar']!.text) ?? widget.targets.sugar,
-        saturatedFat: double.tryParse(_controllers['saturatedFat']!.text) ?? widget.targets.saturatedFat,
-        sodium: double.tryParse(_controllers['sodium']!.text) ?? widget.targets.sodium,
-        potassium: double.tryParse(_controllers['potassium']!.text) ?? widget.targets.potassium,
-        calcium: double.tryParse(_controllers['calcium']!.text) ?? widget.targets.calcium,
-        iron: double.tryParse(_controllers['iron']!.text) ?? widget.targets.iron,
-        magnesium: double.tryParse(_controllers['magnesium']!.text) ?? widget.targets.magnesium,
-        cholesterol: double.tryParse(_controllers['cholesterol']!.text) ?? widget.targets.cholesterol,
+        fiber: double.tryParse(_controllers['fiber']!.text) ??
+            widget.targets.fiber,
+        sugar: double.tryParse(_controllers['sugar']!.text) ??
+            widget.targets.sugar,
+        saturatedFat: double.tryParse(_controllers['saturatedFat']!.text) ??
+            widget.targets.saturatedFat,
+        sodium: double.tryParse(_controllers['sodium']!.text) ??
+            widget.targets.sodium,
+        potassium: double.tryParse(_controllers['potassium']!.text) ??
+            widget.targets.potassium,
+        calcium: double.tryParse(_controllers['calcium']!.text) ??
+            widget.targets.calcium,
+        iron:
+            double.tryParse(_controllers['iron']!.text) ?? widget.targets.iron,
+        magnesium: double.tryParse(_controllers['magnesium']!.text) ??
+            widget.targets.magnesium,
+        cholesterol: double.tryParse(_controllers['cholesterol']!.text) ??
+            widget.targets.cholesterol,
       );
 
       await ref.read(syncServiceProvider).updateUserTargets(updatedTargets);

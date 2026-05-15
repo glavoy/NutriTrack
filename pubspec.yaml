@@ -1,7 +1,7 @@
 name: nutrition_tracker
 description: A nutrition tracking app with Supabase backend
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -31,6 +31,7 @@ dependencies:
   cupertino_icons: ^1.0.6
   fl_chart: ^0.66.0
   google_fonts: ^6.1.0
+  package_info_plus: ^10.1.0
 
 dev_dependencies:
   flutter_test:
