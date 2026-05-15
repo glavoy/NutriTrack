@@ -9,6 +9,7 @@ import '../widgets/meal_card.dart';
 import '../widgets/quick_add_sheet.dart';
 import 'history_screen.dart';
 import 'manage_foods_screen.dart';
+import 'notes_screen.dart';
 import 'settings_screen.dart';
 import '../services/supabase_service.dart';
 import '../services/local_database.dart';
@@ -125,6 +126,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             tooltip: 'History',
           ),
           IconButton(
+            icon: const Icon(Icons.note_alt),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotesScreen()),
+              );
+            },
+            tooltip: 'Notes',
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
               Navigator.push(
@@ -170,7 +181,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             horizontal: 16,
                           ),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surfaceVariant,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Row(

@@ -41,6 +41,12 @@ final userTargetsProvider = FutureProvider<UserTargets>((ref) async {
   return await syncService.getUserTargets();
 });
 
+// User note
+final userNoteProvider = FutureProvider<UserNote>((ref) async {
+  final syncService = ref.watch(syncServiceProvider);
+  return await syncService.getUserNote();
+});
+
 // Entries grouped by meal
 final entriesByMealProvider = Provider<Map<Meal, List<Entry>>>((ref) {
   final entriesAsync = ref.watch(entriesProvider);
@@ -185,6 +191,33 @@ final foodNotifierProvider =
     StateNotifierProvider<FoodNotifier, AsyncValue<void>>((ref) {
   final syncService = ref.watch(syncServiceProvider);
   return FoodNotifier(syncService, ref);
+});
+
+// User note actions notifier
+class UserNoteNotifier extends StateNotifier<AsyncValue<void>> {
+  final SyncService _syncService;
+  final Ref _ref;
+
+  UserNoteNotifier(this._syncService, this._ref)
+      : super(const AsyncValue.data(null));
+
+  Future<void> saveNote(String note) async {
+    state = const AsyncValue.loading();
+    try {
+      await _syncService.updateUserNote(note);
+      _ref.invalidate(userNoteProvider);
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      _ref.invalidate(userNoteProvider);
+      state = AsyncValue.error(e, st);
+    }
+  }
+}
+
+final userNoteNotifierProvider =
+    StateNotifierProvider<UserNoteNotifier, AsyncValue<void>>((ref) {
+  final syncService = ref.watch(syncServiceProvider);
+  return UserNoteNotifier(syncService, ref);
 });
 
 // Selected meal for quick add

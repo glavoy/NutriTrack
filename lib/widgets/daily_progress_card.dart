@@ -146,6 +146,8 @@ class _DailyProgressCardState extends ConsumerState<DailyProgressCard> {
         ];
 
         return Card(
+          color: const Color(0xFFFBFCFA),
+          surfaceTintColor: Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -337,18 +339,17 @@ class _NutrientRowState extends State<_NutrientRow> {
         ? (widget.progress.current / widget.progress.target).clamp(0.0, 1.0)
         : 0.0;
 
-    Color getColor() {
+    Color progressColor() {
       final current = widget.progress.current;
       final target = widget.progress.target;
+      final progress = target > 0 ? (current / target).clamp(0.0, 1.0) : 0.0;
+      final lightness = 0.9 - (progress * 0.52);
+
       if (widget.progress.isLimit) {
-        if (current > target) return Colors.red;
-        if (current > target * 0.8) return Colors.orange;
-        return Colors.green;
-      } else {
-        if (current >= target) return Colors.green;
-        if (current >= target * 0.7) return Colors.orange;
-        return Theme.of(context).colorScheme.primary;
+        if (current > target) return const Color(0xFF8F332D);
       }
+
+      return HSLColor.fromAHSL(1, 7, 0.55, lightness).toColor();
     }
 
     return CompositedTransformTarget(
@@ -368,9 +369,10 @@ class _NutrientRowState extends State<_NutrientRow> {
                   children: [
                     Text(
                       widget.progress.label,
-                      style: TextStyle(
-                        color: Colors.grey[600],
+                      style: const TextStyle(
+                        color: Color(0xFF6D746C),
                         fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     Text(
@@ -385,12 +387,12 @@ class _NutrientRowState extends State<_NutrientRow> {
                 ),
                 const SizedBox(height: 4),
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(
                     value: percentage,
-                    backgroundColor: Colors.grey[200],
-                    valueColor: AlwaysStoppedAnimation(getColor()),
-                    minHeight: 6,
+                    backgroundColor: const Color(0xFFE9EDE7),
+                    valueColor: AlwaysStoppedAnimation(progressColor()),
+                    minHeight: 7,
                   ),
                 ),
               ],

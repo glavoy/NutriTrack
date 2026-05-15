@@ -121,9 +121,12 @@ class SupabaseService {
   }
 
   Future<void> updateEntries(List<Entry> entries) async {
-    for (final entry in entries) {
-      await updateEntry(entry);
-    }
+    if (entries.isEmpty) return;
+
+    await _client.from('entries').upsert(
+          entries.map((entry) => entry.toJson()).toList(),
+          onConflict: 'id',
+        );
   }
 
   Future<void> deleteEntry(String id) async {
@@ -161,6 +164,45 @@ class SupabaseService {
     data['user_id'] = currentUserId;
 
     await _client.from('user_targets').upsert(data, onConflict: 'user_id');
+  }
+
+  // ==================== USER NOTES ====================
+
+  Future<UserNote> getUserNote() async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw StateError('Must be signed in to load notes');
+    }
+
+    try {
+      final response = await _client
+          .from('user_notes')
+          .select()
+          .eq('user_id', userId)
+          .single();
+
+      return UserNote.fromJson(response);
+    } catch (e) {
+      return UserNote.empty().copyWith(userId: userId);
+    }
+  }
+
+  Future<UserNote> updateUserNote(UserNote note) async {
+    final userId = currentUserId;
+    if (userId == null) {
+      throw StateError('Must be signed in to save notes');
+    }
+
+    final data = note.toJson();
+    data['user_id'] = userId;
+
+    final response = await _client
+        .from('user_notes')
+        .upsert(data, onConflict: 'user_id')
+        .select()
+        .single();
+
+    return UserNote.fromJson(response);
   }
 
   // ==================== HISTORY / STATS ====================

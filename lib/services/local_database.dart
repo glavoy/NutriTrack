@@ -20,7 +20,7 @@ class LocalDatabase {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -56,6 +56,9 @@ class LocalDatabase {
           created_at TEXT
         )
       ''');
+    }
+    if (oldVersion < 3) {
+      await _createUserNotesCache(db);
     }
   }
 
@@ -137,10 +140,24 @@ class LocalDatabase {
       )
     ''');
 
+    await _createUserNotesCache(db);
+
     // Indexes
     await db.execute('CREATE INDEX idx_entries_date ON entries_local(date)');
     await db
         .execute('CREATE INDEX idx_entries_synced ON entries_local(is_synced)');
+  }
+
+  Future<void> _createUserNotesCache(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS user_notes_cache (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        note TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL,
+        is_synced INTEGER DEFAULT 1
+      )
+    ''');
   }
 
   // ==================== FOODS CACHE ====================
@@ -428,6 +445,38 @@ class LocalDatabase {
     );
   }
 
+  // ==================== USER NOTES CACHE ====================
+
+  Future<void> cacheUserNote(UserNote note, {required bool isSynced}) async {
+    final db = await database;
+    await db.insert(
+      'user_notes_cache',
+      {
+        'id': 'default',
+        'user_id': note.userId,
+        'note': note.note,
+        'updated_at': note.updatedAt.toUtc().toIso8601String(),
+        'is_synced': isSynced ? 1 : 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<UserNote?> getCachedUserNote() async {
+    final db = await database;
+    final results = await db.query('user_notes_cache', limit: 1);
+
+    if (results.isEmpty) return null;
+
+    final json = results.first;
+    return UserNote(
+      userId: json['user_id'] as String?,
+      note: json['note'] as String? ?? '',
+      updatedAt: DateTime.parse(json['updated_at'] as String),
+      isSynced: json['is_synced'] == 1,
+    );
+  }
+
   // ==================== CLEANUP ====================
 
   Future<void> clearAllData() async {
@@ -435,5 +484,6 @@ class LocalDatabase {
     await db.delete('foods_cache');
     await db.delete('entries_local');
     await db.delete('user_targets_cache');
+    await db.delete('user_notes_cache');
   }
 }

@@ -285,6 +285,16 @@ class _EntryTile extends ConsumerWidget {
             ),
           ),
         const PopupMenuItem<String>(
+          value: 'nutrition',
+          child: Row(
+            children: [
+              Icon(Icons.monitor_heart_outlined, size: 20),
+              SizedBox(width: 12),
+              Text('View nutrition'),
+            ],
+          ),
+        ),
+        const PopupMenuItem<String>(
           value: 'edit',
           child: Row(
             children: [
@@ -309,8 +319,13 @@ class _EntryTile extends ConsumerWidget {
 
     if (!context.mounted) return;
 
+    await WidgetsBinding.instance.endOfFrame;
+    if (!context.mounted) return;
+
     if (value == 'copy_to_today') {
       _copyToToday(context, ref);
+    } else if (value == 'nutrition') {
+      _showNutritionDialog(context);
     } else if (value == 'edit') {
       _showEditDialog(context, ref);
     } else if (value == 'delete') {
@@ -321,16 +336,20 @@ class _EntryTile extends ConsumerWidget {
   Future<void> _showDeleteDialog(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Delete Entry'),
         content: Text('Remove "${entry.foodName}" from your log?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () {
+              Navigator.of(dialogContext, rootNavigator: true).pop(false);
+            },
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () {
+              Navigator.of(dialogContext, rootNavigator: true).pop(true);
+            },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete'),
           ),
@@ -338,9 +357,127 @@ class _EntryTile extends ConsumerWidget {
       ),
     );
 
-    if (confirmed == true && entry.id != null) {
-      ref.read(entryNotifierProvider.notifier).deleteEntry(entry.id!);
+    if (confirmed != true || entry.id == null) return;
+
+    try {
+      await ref.read(entryNotifierProvider.notifier).deleteEntry(entry.id!);
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not delete ${entry.foodName}: $e')),
+      );
     }
+  }
+
+  Future<void> _showNutritionDialog(BuildContext context) {
+    final quantity = entry.quantity % 1 == 0
+        ? entry.quantity.toInt().toString()
+        : double.parse(entry.quantity.toStringAsFixed(3)).toString();
+
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(entry.foodName),
+        content: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Logged amount: $quantity ${entry.unit}',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _NutritionValueRow(
+                  label: 'Calories',
+                  value: entry.calories,
+                  unit: 'kcal',
+                  prominent: true,
+                ),
+                const Divider(height: 20),
+                _NutritionValueRow(
+                  label: 'Protein',
+                  value: entry.protein,
+                  unit: 'g',
+                ),
+                _NutritionValueRow(
+                  label: 'Carbs',
+                  value: entry.carbs,
+                  unit: 'g',
+                ),
+                _NutritionValueRow(
+                  label: 'Fat',
+                  value: entry.fat,
+                  unit: 'g',
+                ),
+                _NutritionValueRow(
+                  label: 'Saturated fat',
+                  value: entry.saturatedFat,
+                  unit: 'g',
+                ),
+                _NutritionValueRow(
+                  label: 'Fiber',
+                  value: entry.fiber,
+                  unit: 'g',
+                ),
+                _NutritionValueRow(
+                  label: 'Sugar',
+                  value: entry.sugar,
+                  unit: 'g',
+                ),
+                const Divider(height: 20),
+                _NutritionValueRow(
+                  label: 'Sodium',
+                  value: entry.sodium,
+                  unit: 'mg',
+                ),
+                _NutritionValueRow(
+                  label: 'Potassium',
+                  value: entry.potassium,
+                  unit: 'mg',
+                ),
+                _NutritionValueRow(
+                  label: 'Calcium',
+                  value: entry.calcium,
+                  unit: 'mg',
+                ),
+                _NutritionValueRow(
+                  label: 'Iron',
+                  value: entry.iron,
+                  unit: 'mg',
+                ),
+                _NutritionValueRow(
+                  label: 'Magnesium',
+                  value: entry.magnesium,
+                  unit: 'mg',
+                ),
+                _NutritionValueRow(
+                  label: 'Cholesterol',
+                  value: entry.cholesterol,
+                  unit: 'mg',
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext, rootNavigator: true).pop();
+            },
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
@@ -585,6 +722,53 @@ class _EntryTile extends ConsumerWidget {
           '${entry.calories.round()} kcal',
           style: const TextStyle(fontWeight: FontWeight.w500),
         ),
+      ),
+    );
+  }
+}
+
+class _NutritionValueRow extends StatelessWidget {
+  final String label;
+  final double value;
+  final String unit;
+  final bool prominent;
+
+  const _NutritionValueRow({
+    required this.label,
+    required this.value,
+    required this.unit,
+    this.prominent = false,
+  });
+
+  String _formattedValue() {
+    if (value % 1 == 0) return value.toInt().toString();
+    return double.parse(value.toStringAsFixed(1)).toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final valueStyle = TextStyle(
+      fontWeight: prominent ? FontWeight.w700 : FontWeight.w600,
+      fontSize: prominent ? 18 : 14,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[700],
+              fontSize: prominent ? 15 : 14,
+            ),
+          ),
+          Text(
+            '${_formattedValue()} $unit',
+            style: valueStyle,
+          ),
+        ],
       ),
     );
   }

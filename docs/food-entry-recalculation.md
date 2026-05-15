@@ -54,7 +54,7 @@ Manage Foods currently includes a temporary development button on existing food 
 This button:
 
 1. Finds all entries where `entries.food_id = foods.id`.
-2. Recalculates each entry's nutrients from the current food definition and the entry quantity.
+2. Recalculates each entry's nutrients from the current food values displayed in the form and the entry quantity.
 3. Updates `food_name` and `unit` from the current food definition.
 4. Requires online access and updates Supabase.
 5. Updates SQLite `entries_local`.
@@ -62,9 +62,13 @@ This button:
 
 The recalculation only touches entries linked to the selected food. It does not scan all entries or all foods.
 
+For custom foods, the form values are saved to the `foods` table before entry recalculation runs. Standard foods are read-only in the app, so their displayed values must be refreshed from Supabase before opening the recalculation screen.
+
 The tool intentionally requires online access. The current offline sync queue handles new entries, but not bulk updates to existing entries.
 
 The matching entries are read from Supabase, not from SQLite fallback, so the correction either operates on the authoritative server set or fails.
+
+Matching entries are written back to Supabase with a bulk upsert keyed by `id`, rather than updating one entry at a time.
 
 ## Recalculation Formula
 

@@ -69,12 +69,16 @@ class _ManageFoodsScreenState extends ConsumerState<ManageFoodsScreen> {
                     child: Text('No foods found'),
                   );
                 }
+                final sortedFoods = [...foods]..sort(
+                    (a, b) =>
+                        a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+                  );
                 return ListView.separated(
-                  itemCount: foods.length,
+                  itemCount: sortedFoods.length,
                   separatorBuilder: (context, index) =>
                       const Divider(height: 1),
                   itemBuilder: (context, index) {
-                    final food = foods[index];
+                    final food = sortedFoods[index];
                     return ListTile(
                       title: Text(food.name),
                       subtitle: Text(
@@ -224,6 +228,33 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
     super.dispose();
   }
 
+  Food _foodFromForm({required bool preserveStandardFlag}) {
+    return Food(
+      id: widget.food?.id,
+      userId: widget.food?.userId,
+      name: _nameController.text.trim(),
+      unit: _unitController.text.trim(),
+      defaultQty: double.tryParse(_defaultQtyController.text) ?? 1,
+      incrementBy: double.tryParse(_incrementByController.text) ?? 1,
+      calories: double.tryParse(_macroControllers['calories']!.text) ?? 0,
+      protein: double.tryParse(_macroControllers['protein']!.text) ?? 0,
+      carbs: double.tryParse(_macroControllers['carbs']!.text) ?? 0,
+      fat: double.tryParse(_macroControllers['fat']!.text) ?? 0,
+      fiber: double.tryParse(_macroControllers['fiber']!.text) ?? 0,
+      sugar: double.tryParse(_macroControllers['sugar']!.text) ?? 0,
+      saturatedFat:
+          double.tryParse(_macroControllers['saturatedFat']!.text) ?? 0,
+      sodium: double.tryParse(_macroControllers['sodium']!.text) ?? 0,
+      potassium: double.tryParse(_macroControllers['potassium']!.text) ?? 0,
+      calcium: double.tryParse(_macroControllers['calcium']!.text) ?? 0,
+      iron: double.tryParse(_macroControllers['iron']!.text) ?? 0,
+      magnesium: double.tryParse(_macroControllers['magnesium']!.text) ?? 0,
+      cholesterol: double.tryParse(_macroControllers['cholesterol']!.text) ?? 0,
+      isDefault: preserveStandardFlag ? widget.food?.isDefault ?? false : false,
+      createdAt: widget.food?.createdAt,
+    );
+  }
+
   Future<void> _save() async {
     if (_isStandardFood) return;
     if (!_formKey.currentState!.validate()) return;
@@ -231,31 +262,7 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final food = Food(
-        id: widget.food?.id,
-        userId: widget.food?.userId,
-        name: _nameController.text.trim(),
-        unit: _unitController.text.trim(),
-        defaultQty: double.tryParse(_defaultQtyController.text) ?? 1,
-        incrementBy: double.tryParse(_incrementByController.text) ?? 1,
-        calories: double.tryParse(_macroControllers['calories']!.text) ?? 0,
-        protein: double.tryParse(_macroControllers['protein']!.text) ?? 0,
-        carbs: double.tryParse(_macroControllers['carbs']!.text) ?? 0,
-        fat: double.tryParse(_macroControllers['fat']!.text) ?? 0,
-        fiber: double.tryParse(_macroControllers['fiber']!.text) ?? 0,
-        sugar: double.tryParse(_macroControllers['sugar']!.text) ?? 0,
-        saturatedFat:
-            double.tryParse(_macroControllers['saturatedFat']!.text) ?? 0,
-        sodium: double.tryParse(_macroControllers['sodium']!.text) ?? 0,
-        potassium: double.tryParse(_macroControllers['potassium']!.text) ?? 0,
-        calcium: double.tryParse(_macroControllers['calcium']!.text) ?? 0,
-        iron: double.tryParse(_macroControllers['iron']!.text) ?? 0,
-        magnesium: double.tryParse(_macroControllers['magnesium']!.text) ?? 0,
-        cholesterol:
-            double.tryParse(_macroControllers['cholesterol']!.text) ?? 0,
-        isDefault: false,
-        createdAt: widget.food?.createdAt,
-      );
+      final food = _foodFromForm(preserveStandardFlag: false);
 
       if (widget.food == null) {
         await ref.read(foodNotifierProvider.notifier).addFood(food);
@@ -305,13 +312,21 @@ class _FoodFormScreenState extends ConsumerState<FoodFormScreen> {
     );
 
     if (confirmed != true) return;
+    if (!_isStandardFood && !_formKey.currentState!.validate()) return;
 
     setState(() => _isRecalculating = true);
 
     try {
+      final currentFood = _foodFromForm(preserveStandardFlag: true);
+      if (!_isStandardFood) {
+        await ref.read(foodNotifierProvider.notifier).updateFood(
+              currentFood.copyWith(isDefault: false),
+            );
+      }
+
       final count = await ref
           .read(foodNotifierProvider.notifier)
-          .recalculateEntriesForFood(food);
+          .recalculateEntriesForFood(currentFood);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

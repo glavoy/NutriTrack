@@ -241,6 +241,58 @@ class SyncService {
     }
   }
 
+  // ==================== USER NOTES ====================
+
+  Future<UserNote> getUserNote() async {
+    final cached = await _local.getCachedUserNote();
+
+    if (await isOnline()) {
+      try {
+        if (cached != null && !cached.isSynced) {
+          final syncedNote = await _supabase.updateUserNote(cached);
+          await _local.cacheUserNote(syncedNote, isSynced: true);
+          return syncedNote.copyWith(isSynced: true);
+        }
+
+        final remoteNote = await _supabase.getUserNote();
+        if (cached == null ||
+            remoteNote.updatedAt.isAfter(cached.updatedAt) ||
+            cached.isSynced) {
+          await _local.cacheUserNote(remoteNote, isSynced: true);
+          return remoteNote.copyWith(isSynced: true);
+        }
+      } catch (e) {
+        if (cached != null) return cached;
+        rethrow;
+      }
+    }
+
+    return cached ?? UserNote.empty();
+  }
+
+  Future<UserNote> updateUserNote(String noteText) async {
+    final localNote = UserNote(
+      note: noteText,
+      updatedAt: DateTime.now().toUtc(),
+      isSynced: false,
+    );
+
+    await _local.cacheUserNote(localNote, isSynced: false);
+
+    if (await isOnline()) {
+      try {
+        final syncedNote = await _supabase.updateUserNote(localNote);
+        await _local.cacheUserNote(syncedNote, isSynced: true);
+        return syncedNote.copyWith(isSynced: true);
+      } catch (e) {
+        throw Exception(
+            'Note saved locally, but could not sync to Supabase: $e');
+      }
+    }
+
+    return localNote;
+  }
+
   // ==================== HISTORY ====================
 
   Future<Map<DateTime, double>> getCalorieHistory(int days) async {
